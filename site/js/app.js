@@ -15,6 +15,9 @@ const state = {
   minYears: 0,
   maxYears: 30,
   minYield: 0,
+  minCoupon: 0,
+  minCurrent: 0,
+  minYtm: 0,
   calcSecid: null
 };
 
@@ -117,6 +120,9 @@ function passesFilters(b) {
   if (state.minYears > 0 && b.years < state.minYears) return false;
   if (state.maxYears < 30 && b.years > state.maxYears) return false;
   if (state.minYield > 0 && b.simpleYieldPct < state.minYield) return false;
+  if (state.minCoupon > 0 && b.couponRatePct < state.minCoupon) return false;
+  if (state.minCurrent > 0 && b.couponYieldPct < state.minCurrent) return false;
+  if (state.minYtm > 0 && b.ytm < state.minYtm) return false;
   return true;
 }
 
@@ -236,7 +242,9 @@ function renderCalc() {
     " · купон " + fmt(b.couponRatePct, 2) + "% (" + fmt(B.couponPerYear(b.couponValue, b.couponPeriod), 2) + " ₽/год)" +
     " · простая доходность " + fmt(b.simpleYieldPct, 2) + "%";
 
-  const amount = parseFloat(document.getElementById("calc-amount").value) || 0;
+  const amountRaw = document.getElementById("calc-amount").dataset.value ||
+    document.getElementById("calc-amount").value.replace(/\D/g, "");
+  const amount = parseFloat(amountRaw) || 0;
   const tax = parseFloat(document.getElementById("calc-tax").value);
 
   const p = B.calcPurchase(amount, b.pricePct, b.faceValue, b.accruedInt);
@@ -319,9 +327,28 @@ function bindUI() {
     renderTable();
     updateStatus();
   });
+  document.getElementById("f-min-coupon").addEventListener("input", e => {
+    document.getElementById("o-min-coupon").textContent = e.target.value;
+    state.minCoupon = parseFloat(e.target.value);
+    renderTable();
+    updateStatus();
+  });
+  document.getElementById("f-min-current").addEventListener("input", e => {
+    document.getElementById("o-min-current").textContent = e.target.value;
+    state.minCurrent = parseFloat(e.target.value);
+    renderTable();
+    updateStatus();
+  });
+  document.getElementById("f-min-ytm").addEventListener("input", e => {
+    document.getElementById("o-min-ytm").textContent = e.target.value;
+    state.minYtm = parseFloat(e.target.value);
+    renderTable();
+    updateStatus();
+  });
 
   document.getElementById("f-reset").addEventListener("click", () => {
     state.search = ""; state.minYears = 0; state.maxYears = 30; state.minYield = 0;
+    state.minCoupon = 0; state.minCurrent = 0; state.minYtm = 0;
     state.groups = { short: false, mid: false, long: false };
     ["g-short", "g-mid", "g-long"].forEach(id => { document.getElementById(id).checked = false; });
     document.getElementById("f-search").value = "";
@@ -331,6 +358,12 @@ function bindUI() {
     document.getElementById("o-min-years").textContent = "0";
     document.getElementById("o-max-years").textContent = "30";
     document.getElementById("o-min-yield").textContent = "0";
+    document.getElementById("f-min-coupon").value = 0;
+    document.getElementById("f-min-current").value = 0;
+    document.getElementById("f-min-ytm").value = 0;
+    document.getElementById("o-min-coupon").textContent = "0";
+    document.getElementById("o-min-current").textContent = "0";
+    document.getElementById("o-min-ytm").textContent = "0";
     renderTable();
     updateStatus();
   });
@@ -344,13 +377,23 @@ function bindUI() {
 
   const amount = document.getElementById("calc-amount");
   const amountRange = document.getElementById("calc-amount-range");
+  const formatSum = (v) => (Number.isFinite(v) && v > 0 ? Math.round(v).toLocaleString("ru-RU") : "");
   amount.addEventListener("input", () => {
-    const v = parseFloat(amount.value);
-    if (!Number.isNaN(v) && v >= 10000 && v <= 5000000) amountRange.value = v;
+    const digits = amount.value.replace(/\D/g, "");
+    if (!digits) {
+      amount.dataset.value = "0";
+      amount.value = "";
+    } else {
+      const v = parseInt(digits, 10);
+      amount.dataset.value = String(v);
+      amount.value = formatSum(v);
+      if (v >= 10000 && v <= 5000000) amountRange.value = v;
+    }
     renderCalc();
   });
   amountRange.addEventListener("input", () => {
-    amount.value = amountRange.value;
+    amount.dataset.value = amountRange.value;
+    amount.value = formatSum(parseFloat(amountRange.value));
     renderCalc();
   });
   document.getElementById("calc-tax").addEventListener("change", renderCalc);
