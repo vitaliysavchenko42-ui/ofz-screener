@@ -24,50 +24,6 @@
 <main>
   <!-- ТАБЛИЦА -->
   <section id="view-table">
-    <section class="card filters">
-      <span class="check"><input type="checkbox" id="g-short"><label for="g-short">Короткие (до 2 лет)</label></span>
-      <span class="check"><input type="checkbox" id="g-mid"><label for="g-mid">Средние (2–5 лет)</label></span>
-      <span class="check"><input type="checkbox" id="g-long"><label for="g-long">Длинные (5+ лет)</label></span>
-      <label>Поиск
-        <input id="f-search" placeholder="ОФЗ-26238…" autocomplete="off">
-      </label>
-      <label>Срок до погашения, лет
-        <span class="range">
-          <input id="f-min-years" type="range" min="0" max="30" step="0.5" value="0">
-          <input id="f-max-years" type="range" min="0" max="30" step="0.5" value="30">
-        </span>
-        <span class="range-vals"><output id="o-min-years">0</output> — <output id="o-max-years">30</output></span>
-      </label>
-      <label>Мин. простая доходность, %
-        <input id="f-min-yield" type="range" min="0" max="25" step="0.1" value="0">
-        <output id="o-min-yield">0</output>
-      </label>
-      <label>Мин. купон (номинал), %
-        <input id="f-min-coupon" type="range" min="0" max="15" step="0.1" value="0">
-        <output id="o-min-coupon">0</output>
-      </label>
-      <label>Мин. текущая купонная, %
-        <input id="f-min-current" type="range" min="0" max="25" step="0.1" value="0">
-        <output id="o-min-current">0</output>
-      </label>
-      <label>Мин. YTM, %
-        <input id="f-min-ytm" type="range" min="0" max="25" step="0.1" value="0">
-        <output id="o-min-ytm">0</output>
-      </label>
-      <button id="f-reset" class="btn ghost">Сбросить</button>
-    </section>
-
-    <section class="card chart-card">
-      <h2>Доходность к сроку погашения</h2>
-      <div class="legend">
-        <span><i class="dot short"></i> до 2 лет</span>
-        <span><i class="dot mid"></i> 2–5 лет</span>
-        <span><i class="dot long"></i> 5+ лет</span>
-        <span class="hint">нажмите на точку — бумага откроется в калькуляторе</span>
-      </div>
-      <div id="chart"></div>
-    </section>
-
     <section class="card table-card">
       <div id="table-status" class="status">Загрузка…</div>
       <div id="table-wrap"></div>
@@ -117,7 +73,7 @@
 
 <footer>Данные: ISS API Мосбиржи · сервис бесплатный · не является инвестиционной рекомендацией</footer>
 
-<script src="js/calculator.js?v=5"></script>
-<script src="js/app.js?v=5"></script>
+<script src="js/calculator.js?v=6"></script>
+<script src="js/app.js?v=6"></script>
 </body>
 </html>
