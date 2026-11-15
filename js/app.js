@@ -343,7 +343,14 @@ function renderCalc() {
   const c = B.calcCoupons(p.qty, nCoupons, b.couponValue, tax);
   const proceeds = p.qty * b.faceValue + c.net;
   const gain = proceeds - p.cost;
-  const net = B.netAnnualPct(proceeds, p.cost, days);
+  const nowMs = Date.now();
+  const firstCouponDays = b.nextCoupon
+    ? Math.max(Math.round((B.parseISO(b.nextCoupon).getTime() - nowMs) / 86400000), 0)
+    : 0;
+  const net = p.qty
+    ? B.netYieldXirr(p.perBond, b.couponValue * (1 - tax / 100), nCoupons,
+        firstCouponDays, b.couponPeriod, b.faceValue, days)
+    : null;
 
   const item = (label, value, accent) =>
     '<div class="result"><div class="label">' + label + '</div><div class="value' +

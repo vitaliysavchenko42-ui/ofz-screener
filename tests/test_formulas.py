@@ -54,6 +54,37 @@ def net_annual_pct(proceeds: float, cost: float, days: int) -> float:
     return (pow(proceeds / cost, 365.25 / days) - 1) * 100
 
 
+def net_yield_xirr(cost, net_coupon, n_coupons, first_coupon_days, period_days, face_value, days_total):
+    if cost <= 0 or n_coupons < 1 or period_days <= 0 or days_total <= 0:
+        return None
+    flows = [(min(first_coupon_days + k * period_days, days_total), net_coupon) for k in range(n_coupons)]
+    flows.append((days_total, face_value))
+
+    def pv(r):
+        return -cost + sum(a / (1 + r) ** (d / 365.25) for d, a in flows)
+
+    HI = 5.0
+    if pv(HI) >= 0:
+        return None
+    lo = 0.0
+    if pv(lo) <= 0:
+        lo = None
+        for r0 in (-0.1, -0.25, -0.5, -0.75, -0.9):
+            if pv(r0) > 0:
+                lo = r0
+                break
+        if lo is None:
+            return None
+    hi = HI
+    for _ in range(200):
+        mid = (lo + hi) / 2
+        if pv(mid) > 0:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2 * 100
+
+
 class TestFormulas(unittest.TestCase):
     def test_coupon_per_year(self):
         self.assertAlmostEqual(coupon_per_year(62.5, 365), 62.5, places=6)
@@ -94,6 +125,21 @@ class TestFormulas(unittest.TestCase):
         self.assertAlmostEqual(net_annual_pct(1100, 1000, 365), 10.0, delta=0.05)
         with self.assertRaises(ValueError):
             net_annual_pct(1100, 0, 365)
+
+    def test_xirr_matches_moex_ytm(self):
+        # ОФЗ 26254-подобный поток: лот 839.43, купон 64.82 каждые 182 дня,
+        # 28 купонов, номинал 1000. IRR ~16.75% — согласуется с YTM Мосбиржи.
+        x = net_yield_xirr(839.43, 64.82, 28, 155, 182, 1000, 5070)
+        self.assertAlmostEqual(x, 16.75, delta=0.15)
+
+    def test_xirr_after_tax(self):
+        # после НДФЛ 18% на купоны доходность к погашению заметно ниже доналоговой
+        x = net_yield_xirr(839.43, 64.82 * 0.82, 28, 155, 182, 1000, 5070)
+        self.assertAlmostEqual(x, 13.8, delta=0.2)
+
+    def test_xirr_edges(self):
+        self.assertIsNone(net_yield_xirr(0, 64.82, 28, 155, 182, 1000, 5070))
+        self.assertIsNone(net_yield_xirr(839.43, 64.82, 0, 155, 182, 1000, 5070))
 
 
 if __name__ == "__main__":
