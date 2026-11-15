@@ -10,10 +10,14 @@ const state = {
   bonds: [],
   sortKey: "simpleYieldPct",
   sortDir: -1,
+  search: "",
+  groups: { short: false, mid: false, long: false },
   calcGroups: { short: false, mid: false, long: false },
   calcSecid: null,
   suggestIndex: -1,
-  suggestList: []
+  suggestList: [],
+  tableSuggestList: [],
+  tableSuggestIndex: -1
 };
 
 const COLUMNS = [
@@ -27,7 +31,7 @@ const COLUMNS = [
   { key: "ytm", label: "YTM, %", tag: "YTM, %" }
 ];
 
-const GROUP_LABEL = { short: "до 2 лет", mid: "2–5 лет", long: "5+ лет" };
+const GROUP_LABEL = { short: "0–3 года", mid: "3–6 лет", long: "6+ лет" };
 
 const fmt = (n, d) => {
   const digits = d === undefined ? 2 : d;
@@ -37,7 +41,7 @@ const fmt = (n, d) => {
 const fmtRub = (n, d) => fmt(n, d === undefined ? 0 : d) + " ₽";
 
 function groupOf(years) {
-  return years <= 2 ? "short" : years <= 5 ? "mid" : "long";
+  return years <= 3 ? "short" : years <= 6 ? "mid" : "long";
 }
 
 function anyGroup(g) {
@@ -73,6 +77,10 @@ function restore() {
 }
 
 function applyControls() {
+  document.getElementById("g-short").checked = state.groups.short;
+  document.getElementById("g-mid").checked = state.groups.mid;
+  document.getElementById("g-long").checked = state.groups.long;
+  document.getElementById("f-search").value = state.search;
   document.getElementById("c-short").checked = state.calcGroups.short;
   document.getElementById("c-mid").checked = state.calcGroups.mid;
   document.getElementById("c-long").checked = state.calcGroups.long;
@@ -145,7 +153,9 @@ async function loadData() {
 }
 
 function passesFilters(b) {
-  // Фильтры таблицы убраны по запросу — показываем все бумаги.
+  const q = state.search.trim().toLowerCase();
+  if (q && !(b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q))) return false;
+  if (anyGroup(state.groups) && !state.groups[groupOf(b.years)]) return false;
   return true;
 }
 
@@ -167,7 +177,56 @@ function updateStatus() {
   const total = state.bonds.length;
   const shown = filtered().length;
   document.getElementById("table-status").textContent =
-    "Всего бумаг: " + total;
+    "Всего бумаг: " + total + " · показано: " + shown;
+}
+
+function renderTableSuggestions() {
+  const box = document.getElementById("table-suggestions");
+  const q = state.search.trim().toLowerCase();
+  if (!q) {
+    state.tableSuggestList = [];
+    state.tableSuggestIndex = -1;
+    box.innerHTML = "";
+    box.classList.add("hidden");
+    return;
+  }
+  const list = state.bonds
+    .filter(b => b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q))
+    .slice()
+    .sort((a, b) => B.parseISO(a.matDate) - B.parseISO(b.matDate))
+    .slice(0, 12);
+  state.tableSuggestList = list;
+  if (!list.length) {
+    box.innerHTML = "";
+    box.classList.add("hidden");
+    return;
+  }
+  box.innerHTML = list.map((b, i) =>
+    '<div class="sug' + (i === state.tableSuggestIndex ? " active" : "") +
+    '" data-secid="' + b.secid + '"><span>' + b.name + "</span>" +
+    '<span class="sug-meta">' + b.matDate + " · простая " + fmt(b.simpleYieldPct, 2) +
+    "%</span></div>"
+  ).join("");
+  box.classList.remove("hidden");
+  box.querySelectorAll(".sug").forEach(el =>
+    el.addEventListener("mousedown", e => {
+      e.preventDefault();
+      applyTableSuggestion(el.dataset.secid);
+    })
+  );
+}
+
+function applyTableSuggestion(secid) {
+  const b = state.bonds.find(x => x.secid === secid);
+  if (!b) return;
+  const input = document.getElementById("f-search");
+  state.search = b.name;
+  input.value = b.name;
+  state.tableSuggestIndex = -1;
+  document.getElementById("table-suggestions").classList.add("hidden");
+  persist();
+  renderTable();
+  updateStatus();
 }
 
 function renderTable() {
@@ -316,6 +375,57 @@ function bindUI() {
   document.getElementById("tab-table").addEventListener("click", () => switchTab("table"));
   document.getElementById("tab-calc").addEventListener("click", () => switchTab("calc"));
   document.getElementById("refresh").addEventListener("click", loadData);
+
+  ["g-short", "g-mid", "g-long"].forEach(id =>
+    document.getElementById(id).addEventListener("change", e => {
+      state.groups[id.slice(2)] = e.target.checked;
+      persist();
+      renderTable();
+      updateStatus();
+    })
+  );
+
+  const fSearch = document.getElementById("f-search");
+  fSearch.addEventListener("input", () => {
+    state.search = fSearch.value;
+    state.tableSuggestIndex = -1;
+    renderTableSuggestions();
+    // Автоподстановка при единственном совпадении: подставляем полное название
+    if (state.tableSuggestList.length === 1) {
+      applyTableSuggestion(state.tableSuggestList[0].secid);
+      return;
+    }
+    persist();
+    renderTable();
+    updateStatus();
+  });
+  fSearch.addEventListener("keydown", e => {
+    const box = document.getElementById("table-suggestions");
+    const hidden = box.classList.contains("hidden");
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (hidden || !state.tableSuggestList.length) return;
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      state.tableSuggestIndex = (state.tableSuggestIndex + step + state.tableSuggestList.length) % state.tableSuggestList.length;
+      renderTableSuggestions();
+      const act = box.querySelector(".sug.active");
+      if (act) act.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+      if (!hidden && state.tableSuggestIndex >= 0 && state.tableSuggestList[state.tableSuggestIndex]) {
+        e.preventDefault();
+        applyTableSuggestion(state.tableSuggestList[state.tableSuggestIndex].secid);
+      } else if (state.tableSuggestList.length === 1) {
+        e.preventDefault();
+        applyTableSuggestion(state.tableSuggestList[0].secid);
+      }
+    } else if (e.key === "Escape") {
+      box.classList.add("hidden");
+    }
+  });
+  fSearch.addEventListener("focus", () => { if (state.search.trim()) renderTableSuggestions(); });
+  fSearch.addEventListener("blur", () => {
+    setTimeout(() => document.getElementById("table-suggestions").classList.add("hidden"), 150);
+  });
 
   ["c-short", "c-mid", "c-long"].forEach(id =>
     document.getElementById(id).addEventListener("change", e => {

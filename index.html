@@ -24,6 +24,17 @@
 <main>
   <!-- ТАБЛИЦА -->
   <section id="view-table">
+    <section class="card filters">
+      <span class="check"><input type="checkbox" id="g-short"><label for="g-short">От 0 до 3 лет</label></span>
+      <span class="check"><input type="checkbox" id="g-mid"><label for="g-mid">От 3 до 6 лет</label></span>
+      <span class="check"><input type="checkbox" id="g-long"><label for="g-long">От 6 и более</label></span>
+      <label class="picker">
+        Поиск
+        <input id="f-search" placeholder="26238 или ОФЗ 262…" autocomplete="off">
+        <div id="table-suggestions" class="suggestions hidden"></div>
+      </label>
+    </section>
+
     <section class="card table-card">
       <div id="table-status" class="status">Загрузка…</div>
       <div id="table-wrap"></div>
@@ -73,7 +84,7 @@
 
 <footer>Данные: ISS API Мосбиржи · сервис бесплатный · не является инвестиционной рекомендацией</footer>
 
-<script src="js/calculator.js?v=6"></script>
-<script src="js/app.js?v=6"></script>
+<script src="js/calculator.js?v=7"></script>
+<script src="js/app.js?v=7"></script>
 </body>
 </html>
