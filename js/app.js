@@ -20,12 +20,11 @@ const state = {
 
 const COLUMNS = [
   { key: "name", label: "Название" },
-  { key: "pricePct", label: "Цена, %" },
   { key: "priceRub", label: "Цена, ₽" },
   { key: "matDate", label: "Погашение" },
   { key: "years", label: "Лет" },
-  { key: "couponRatePct", label: "Ставка купона, %" },
-  { key: "couponYieldPct", label: "Купон к цене, %" },
+  { key: "couponRatePct", label: "Купон (номинал), %" },
+  { key: "couponYieldPct", label: "Текущая купонная, %" },
   { key: "simpleYieldPct", label: "Простая, %" },
   { key: "ytm", label: "YTM, %" }
 ];
@@ -155,7 +154,6 @@ function renderTable() {
   const tbody = rows.map(b =>
     "<tr>" +
       '<td class="bond-name">' + b.name + "</td>" +
-      "<td>" + fmt(b.pricePct, 2) + "</td>" +
       "<td>" + fmt(b.priceRub, 2) + "</td>" +
       "<td>" + b.matDate + "</td>" +
       "<td>" + fmt(b.years, 1) + "</td>" +
@@ -204,7 +202,8 @@ function renderSuggestions() {
   }
   box.innerHTML = top.map(b =>
     '<div class="sug" data-secid="' + b.secid + '"><span>' + b.name + "</span>" +
-    '<span class="sug-meta">' + b.matDate + " · " + fmt(b.simpleYieldPct, 2) + "%</span></div>"
+    '<span class="sug-meta">' + b.matDate + " · купон " + fmt(b.couponRatePct, 2) +
+    "% · простая " + fmt(b.simpleYieldPct, 2) + "%</span></div>"
   ).join("");
   box.classList.remove("hidden");
   box.querySelectorAll(".sug").forEach(el =>
@@ -234,7 +233,7 @@ function renderCalc() {
   }
 
   sel.textContent = "Выбрано: " + b.name + " · погашение " + b.matDate +
-    " · ставка купона " + fmt(b.couponRatePct, 2) + "%" +
+    " · купон " + fmt(b.couponRatePct, 2) + "% (" + fmt(B.couponPerYear(b.couponValue, b.couponPeriod), 2) + " ₽/год)" +
     " · простая доходность " + fmt(b.simpleYieldPct, 2) + "%";
 
   const amount = parseFloat(document.getElementById("calc-amount").value) || 0;
@@ -253,7 +252,7 @@ function renderCalc() {
     (accent ? " accent" : "") + '">' + value + "</div></div>";
 
   box.innerHTML = '<div class="results">' +
-    item("Цена бумаги", fmt(b.pricePct, 2) + "% = " + fmtRub(b.priceRub)) +
+    item("Цена бумаги", fmtRub(b.priceRub)) +
     item("НКД", fmtRub(b.accruedInt)) +
     item("Цена лота (бумага + НКД)", fmtRub(p.perBond)) +
     item("Количество бумаг", p.qty + " шт. · сдача " + fmtRub(p.change)) +
