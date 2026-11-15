@@ -3,16 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ОФЗ-скринер — Мосбирже</title>
+<title>ОФЗ-скринер — доходность облигаций Мосбиржи</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<header class="topbar">
-  <h1>ОФЗ-скринер</h1>
-  <div class="meta">
-    <span id="updated-at">—</span>
-    <button id="refresh" class="btn">Обновить</button>
+<header class="hero">
+  <span class="brand">📈 ОФЗ-скринер</span>
+  <h1>Все ОФЗ Мосбиржи: доходность, купоны и чистая прибыль — за минуту</h1>
+  <p class="sub">Живые данные биржи, калькулятор покупки с налогом 13–22% и фильтры по сроку и доходности. Бесплатно и без регистрации.</p>
+  <div class="chips">
+    <span class="chip">⚡ Данные в реальном времени</span>
+    <span class="chip">🧮 Калькулятор с НДФЛ</span>
+    <span class="chip">🎯 Фильтры по сроку и доходности</span>
+    <span class="chip">🔒 Без регистрации</span>
+    <span class="chip">💚 Бесплатно</span>
   </div>
+  <div class="hero-cta">
+    <button id="cta-calc" class="cta" type="button">Рассчитать доходность</button>
+    <button id="cta-table" class="cta ghost" type="button">Смотреть таблицу</button>
+  </div>
+  <div class="live-stats" id="hero-stats">Загружаю данные…</div>
 </header>
 
 <nav class="tabs">
@@ -56,6 +67,17 @@
       <button id="f-reset" class="btn ghost">Сбросить</button>
     </section>
 
+    <section class="card chart-card">
+      <h2>Доходность к сроку погашения</h2>
+      <div class="legend">
+        <span><i class="dot short"></i> до 2 лет</span>
+        <span><i class="dot mid"></i> 2–5 лет</span>
+        <span><i class="dot long"></i> 5+ лет</span>
+        <span class="hint">нажмите на точку — бумага откроется в калькуляторе</span>
+      </div>
+      <div id="chart"></div>
+    </section>
+
     <section class="card table-card">
       <div id="table-status" class="status">Загрузка…</div>
       <div id="table-wrap"></div>
@@ -74,7 +96,7 @@
       <div class="calc-grid">
         <label class="picker">
           ОФЗ
-          <input id="calc-search" placeholder="Начните вводить: ОФЗ-26238…" autocomplete="off">
+          <input id="calc-search" placeholder="26254 или ОФЗ 262…" autocomplete="off">
           <div id="calc-suggestions" class="suggestions hidden"></div>
         </label>
         <label>Сумма, ₽
@@ -103,7 +125,7 @@
   </section>
 </main>
 
-<footer>Данные: ISS API Мосбиржи · обновление в реальном времени</footer>
+<footer>Данные: ISS API Мосбиржи · сервис бесплатный · не является инвестиционной рекомендацией</footer>
 
 <script src="js/calculator.js"></script>
 <script src="js/app.js"></script>
