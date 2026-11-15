@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ОФЗ-скринер — Мосбирже</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>ОФЗ-скринер</h1>
+  <div class="meta">
+    <span id="updated-at">—</span>
+    <button id="refresh" class="btn">Обновить</button>
+  </div>
+</header>
+
+<main>
+  <section class="card filters">
+    <label>Поиск
+      <input id="f-search" placeholder="ОФЗ-26238…" autocomplete="off">
+    </label>
+    <label>Срок до погашения, лет
+      <span class="range">
+        <input id="f-min-years" type="number" step="0.5" placeholder="от">
+        <input id="f-max-years" type="number" step="0.5" placeholder="до">
+      </span>
+    </label>
+    <label>Мин. простая доходность, %
+      <input id="f-min-yield" type="number" step="0.1" placeholder="напр. 12">
+    </label>
+    <button id="f-reset" class="btn ghost">Сбросить</button>
+  </section>
+
+  <section class="card table-card">
+    <div id="table-status" class="status">Готов к загрузке</div>
+    <div id="table-wrap"></div>
+  </section>
+
+  <section class="card calc">
+    <h2>Калькулятор покупки</h2>
+    <div class="calc-grid">
+      <label>ОФЗ
+        <select id="calc-bond"></select>
+      </label>
+      <label>Сумма, ₽
+        <input id="calc-amount" type="number" value="100000" min="0" step="1000">
+      </label>
+      <label>Ставка НДФЛ
+        <select id="calc-tax">
+          <option value="13" selected>13 %</option>
+          <option value="15">15 %</option>
+          <option value="18">18 %</option>
+          <option value="20">20 %</option>
+          <option value="22">22 %</option>
+        </select>
+      </label>
+    </div>
+    <div id="calc-results"></div>
+    <p class="note">
+      Налог на купоны удерживает брокер автоматически. Дисконт (разница цены покупки и номинала)
+      при погашении по номиналу НДФЛ не облагается. Даты купонов считаются с шагом COUPONPERIOD от
+      следующего купона — для бумаг с неровным графиком возможна погрешность ±1 купон. Суммы —
+      на одну бумагу номиналом 1000 ₽. Не является инвестиционной рекомендацией.
+    </p>
+  </section>
+</main>
+
+<footer>Данные: ISS API Мосбиржи · обновление в реальном времени</footer>
+
+<script src="js/calculator.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
