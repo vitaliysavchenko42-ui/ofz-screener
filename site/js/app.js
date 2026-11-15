@@ -18,7 +18,9 @@ const state = {
   minCoupon: 0,
   minCurrent: 0,
   minYtm: 0,
-  calcSecid: null
+  calcSecid: null,
+  suggestIndex: -1,
+  suggestList: []
 };
 
 const COLUMNS = [
@@ -200,14 +202,15 @@ function renderSuggestions() {
   const list = q
     ? pool.filter(b => b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q))
     : pool;
-  const top = list.slice(0, 12);
-  if (!top.length) {
+  state.suggestList = list.slice(0, 12);
+  if (!state.suggestList.length) {
     box.innerHTML = "";
     box.classList.add("hidden");
     return;
   }
-  box.innerHTML = top.map(b =>
-    '<div class="sug" data-secid="' + b.secid + '"><span>' + b.name + "</span>" +
+  box.innerHTML = state.suggestList.map((b, i) =>
+    '<div class="sug' + (i === state.suggestIndex ? " active" : "") +
+    '" data-secid="' + b.secid + '"><span>' + b.name + "</span>" +
     '<span class="sug-meta">' + b.matDate + " · купон " + fmt(b.couponRatePct, 2) +
     "% · простая " + fmt(b.simpleYieldPct, 2) + "%</span></div>"
   ).join("");
@@ -220,11 +223,13 @@ function renderSuggestions() {
   );
 }
 
-function selectCalcBond(secid) {
+function selectCalcBond(secid, keepText) {
   state.calcSecid = secid;
   const b = state.bonds.find(x => x.secid === secid);
-  document.getElementById("calc-search").value = b ? b.name : "";
-  document.getElementById("calc-suggestions").classList.add("hidden");
+  if (!keepText) {
+    document.getElementById("calc-search").value = b ? b.name : "";
+    document.getElementById("calc-suggestions").classList.add("hidden");
+  }
   renderCalc();
 }
 
@@ -369,7 +374,42 @@ function bindUI() {
   });
 
   const search = document.getElementById("calc-search");
-  search.addEventListener("input", renderSuggestions);
+  search.addEventListener("input", () => {
+    const q = search.value.trim().toLowerCase();
+    state.suggestIndex = -1;
+    renderSuggestions();
+    // Автоподстановка: единственный вариант или точное совпадение с тикером/названием
+    if (state.suggestList.length === 1) {
+      selectCalcBond(state.suggestList[0].secid, true);
+    } else {
+      const exact = state.suggestList.find(b =>
+        b.secid.toLowerCase() === q || b.name.toLowerCase() === q);
+      if (exact) selectCalcBond(exact.secid, true);
+    }
+  });
+  search.addEventListener("keydown", e => {
+    const box = document.getElementById("calc-suggestions");
+    const hidden = box.classList.contains("hidden");
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (hidden || !state.suggestList.length) return;
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      state.suggestIndex = (state.suggestIndex + step + state.suggestList.length) % state.suggestList.length;
+      renderSuggestions();
+      const act = box.querySelector(".sug.active");
+      if (act) act.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+      if (!hidden && state.suggestIndex >= 0 && state.suggestList[state.suggestIndex]) {
+        e.preventDefault();
+        selectCalcBond(state.suggestList[state.suggestIndex].secid);
+      } else if (state.suggestList.length === 1) {
+        e.preventDefault();
+        selectCalcBond(state.suggestList[0].secid);
+      }
+    } else if (e.key === "Escape") {
+      box.classList.add("hidden");
+    }
+  });
   search.addEventListener("focus", renderSuggestions);
   search.addEventListener("blur", () => {
     setTimeout(() => document.getElementById("calc-suggestions").classList.add("hidden"), 150);
