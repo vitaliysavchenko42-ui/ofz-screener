@@ -24,7 +24,8 @@ const COLUMNS = [
   { key: "priceRub", label: "Цена, ₽" },
   { key: "matDate", label: "Погашение" },
   { key: "years", label: "Лет" },
-  { key: "couponYieldPct", label: "Купон, %" },
+  { key: "couponRatePct", label: "Ставка купона, %" },
+  { key: "couponYieldPct", label: "Купон к цене, %" },
   { key: "simpleYieldPct", label: "Простая, %" },
   { key: "ytm", label: "YTM, %" }
 ];
@@ -85,6 +86,7 @@ async function loadData() {
         const cyp = B.couponYieldPct(b.couponValue, b.couponPeriod, b.pricePct, b.faceValue);
         b.priceRub = b.pricePct / 100 * b.faceValue;
         b.years = years;
+        b.couponRatePct = B.couponPerYear(b.couponValue, b.couponPeriod) / b.faceValue * 100;
         b.couponYieldPct = cyp;
         b.simpleYieldPct = B.simpleYieldPct(cyp, b.pricePct, years);
         return b;
@@ -157,6 +159,7 @@ function renderTable() {
       "<td>" + fmt(b.priceRub, 2) + "</td>" +
       "<td>" + b.matDate + "</td>" +
       "<td>" + fmt(b.years, 1) + "</td>" +
+      "<td>" + fmt(b.couponRatePct, 2) + "</td>" +
       "<td>" + fmt(b.couponYieldPct, 2) + "</td>" +
       '<td class="simple-yield">' + fmt(b.simpleYieldPct, 2) + "</td>" +
       "<td>" + fmt(b.ytm, 2) + "</td>" +
@@ -231,6 +234,7 @@ function renderCalc() {
   }
 
   sel.textContent = "Выбрано: " + b.name + " · погашение " + b.matDate +
+    " · ставка купона " + fmt(b.couponRatePct, 2) + "%" +
     " · простая доходность " + fmt(b.simpleYieldPct, 2) + "%";
 
   const amount = parseFloat(document.getElementById("calc-amount").value) || 0;
