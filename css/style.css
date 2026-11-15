@@ -169,6 +169,8 @@ tr:hover td { background: #1b2438; }
 }
 
 .sug:hover, .sug:hover .sug-meta { background: #1b2438; }
+.sug.active { background: #2a3550; }
+.sug.active .sug-meta { color: #cdd9f2; }
 .sug-meta { color: var(--muted); white-space: nowrap; }
 
 .results {
