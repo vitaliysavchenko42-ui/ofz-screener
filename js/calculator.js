@@ -57,5 +57,37 @@ window.BondCalc = {
   netAnnualPct: function (proceeds, cost, days) {
     if (cost <= 0 || days <= 0 || proceeds <= 0) return null;
     return (Math.pow(proceeds / cost, this.YEAR_DAYS / days) - 1) * 100;
+  },
+
+  /** Чистая доходность (XIRR): покупка сегодня, купоны после налога по графику,
+   *  номинал при погашении. Возвращает % годовых или null. */
+  netYieldXirr: function (cost, netCoupon, nCoupons, firstCouponDays, periodDays, faceValue, daysTotal) {
+    if (!(cost > 0) || !nCoupons || nCoupons < 1 || !periodDays || !(daysTotal > 0)) return null;
+    const flows = [];
+    for (let k = 0; k < nCoupons; k++) {
+      flows.push([Math.min(firstCouponDays + k * periodDays, daysTotal), netCoupon]);
+    }
+    flows.push([daysTotal, faceValue]);
+    const pv = (r) => {
+      let s = -cost;
+      for (const f of flows) s += f[1] / Math.pow(1 + r, f[0] / 365.25);
+      return s;
+    };
+    const HI = 5;
+    if (pv(HI) >= 0) return null;
+    let lo = 0;
+    if (pv(lo) <= 0) {
+      lo = null;
+      for (const r0 of [-0.1, -0.25, -0.5, -0.75, -0.9]) {
+        if (pv(r0) > 0) { lo = r0; break; }
+      }
+      if (lo === null) return null;
+    }
+    let hi = HI;
+    for (let i = 0; i < 200; i++) {
+      const mid = (lo + hi) / 2;
+      if (pv(mid) > 0) lo = mid; else hi = mid;
+    }
+    return ((lo + hi) / 2) * 100;
   }
 };
