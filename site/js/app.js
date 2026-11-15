@@ -10,9 +10,12 @@ const state = {
   sortKey: "simpleYieldPct",
   sortDir: -1,
   search: "",
-  minYears: null,
-  maxYears: null,
-  minYield: null
+  groups: { short: false, mid: false, long: false },
+  calcGroups: { short: false, mid: false, long: false },
+  minYears: 0,
+  maxYears: 30,
+  minYield: 0,
+  calcSecid: null
 };
 
 const COLUMNS = [
@@ -33,6 +36,14 @@ const fmt = (n, d) => {
 };
 const fmtRub = (n, d) => fmt(n, d === undefined ? 0 : d) + " ₽";
 
+function groupOf(years) {
+  return years <= 2 ? "short" : years <= 5 ? "mid" : "long";
+}
+
+function anyGroup(g) {
+  return g.short || g.mid || g.long;
+}
+
 async function loadData() {
   const status = document.getElementById("table-status");
   status.textContent = "Загружаю данные Мосбиржи…";
@@ -52,7 +63,7 @@ async function loadData() {
         faceValue: r[idx.FACEVALUE],
         accruedInt: r[idx.ACCRUEDINT],
         couponValue: r[idx.COUPONVALUE],
-        couponPeriod: r[idx.COUPONPERIOD],
+        couponPeriod: r[idx.COUPOPERIOD],
         nextCoupon: r[idx.NEXTCOUPON],
         matDate: r[idx.MATDATE],
         ytm: r[idx.YIELDATPREVWAPRICE],
@@ -76,25 +87,35 @@ async function loadData() {
 
     document.getElementById("updated-at").textContent =
       "Данные Мосбиржи: " + new Date().toLocaleTimeString("ru-RU");
-    status.textContent = "Бумаг в таблице: " + state.bonds.length;
 
-    fillCalcSelect();
+    if (!state.calcSecid || !state.bonds.some(b => b.secid === state.calcSecid)) {
+      const first = state.bonds.slice()
+        .sort((a, b) => B.parseISO(a.matDate) - B.parseISO(b.matDate))[0];
+      state.calcSecid = first ? first.secid : null;
+    }
+
     renderTable();
+    renderSuggestions();
     renderCalc();
+    updateStatus();
   } catch (e) {
-    status.textContent = "Не удалось загрузить данные: " + e.message;
+    status.textContent = "Не удалось загрузить данные: " + e.message +
+      " — проверьте соединение и нажмите «Обновить»";
   }
 }
 
-function filtered() {
+function passesFilters(b) {
   const q = state.search.trim().toLowerCase();
-  return state.bonds.filter(b => {
-    if (q && !(b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q))) return false;
-    if (state.minYears !== null && b.years < state.minYears) return false;
-    if (state.maxYears !== null && b.years > state.maxYears) return false;
-    if (state.minYield !== null && b.simpleYieldPct < state.minYield) return false;
-    return true;
-  });
+  if (q && !(b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q))) return false;
+  if (anyGroup(state.groups) && !state.groups[groupOf(b.years)]) return false;
+  if (state.minYears > 0 && b.years < state.minYears) return false;
+  if (state.maxYears < 30 && b.years > state.maxYears) return false;
+  if (state.minYield > 0 && b.simpleYieldPct < state.minYield) return false;
+  return true;
+}
+
+function filtered() {
+  return state.bonds.filter(passesFilters);
 }
 
 function sortRows(rows) {
@@ -105,6 +126,13 @@ function sortRows(rows) {
     if (k === "matDate") { va = B.parseISO(va).getTime(); vb = B.parseISO(vb).getTime(); }
     return (va - vb) * dir;
   });
+}
+
+function updateStatus() {
+  const total = state.bonds.length;
+  const shown = filtered().length;
+  document.getElementById("table-status").textContent =
+    "Всего бумаг: " + total + " · показано: " + shown;
 }
 
 function renderTable() {
@@ -146,25 +174,59 @@ function renderTable() {
   );
 }
 
-function fillCalcSelect() {
-  const sel = document.getElementById("calc-bond");
-  const current = sel.value;
-  const options = state.bonds
-    .slice()
-    .sort((a, b) => B.parseISO(a.matDate) - B.parseISO(b.matDate))
-    .map(b => {
-      const label = b.name + " · " + b.matDate + " · " + fmt(b.simpleYieldPct, 2) + "%";
-      return '<option value="' + b.secid + '">' + label + "</option>";
-    });
-  sel.innerHTML = options.join("");
-  if (current && state.bonds.some(b => b.secid === current)) sel.value = current;
+function calcPool() {
+  return state.bonds.filter(b =>
+    anyGroup(state.calcGroups) ? state.calcGroups[groupOf(b.years)] : true
+  );
+}
+
+function renderSuggestions() {
+  const box = document.getElementById("calc-suggestions");
+  const q = document.getElementById("calc-search").value.trim().toLowerCase();
+  const pool = calcPool().slice()
+    .sort((a, b) => B.parseISO(a.matDate) - B.parseISO(b.matDate));
+  const list = q
+    ? pool.filter(b => b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q))
+    : pool;
+  const top = list.slice(0, 12);
+  if (!top.length) {
+    box.innerHTML = "";
+    box.classList.add("hidden");
+    return;
+  }
+  box.innerHTML = top.map(b =>
+    '<div class="sug" data-secid="' + b.secid + '"><span>' + b.name + "</span>" +
+    '<span class="sug-meta">' + b.matDate + " · " + fmt(b.simpleYieldPct, 2) + "%</span></div>"
+  ).join("");
+  box.classList.remove("hidden");
+  box.querySelectorAll(".sug").forEach(el =>
+    el.addEventListener("mousedown", e => {
+      e.preventDefault();
+      selectCalcBond(el.dataset.secid);
+    })
+  );
+}
+
+function selectCalcBond(secid) {
+  state.calcSecid = secid;
+  const b = state.bonds.find(x => x.secid === secid);
+  document.getElementById("calc-search").value = b ? b.name : "";
+  document.getElementById("calc-suggestions").classList.add("hidden");
+  renderCalc();
 }
 
 function renderCalc() {
   const box = document.getElementById("calc-results");
-  const secid = document.getElementById("calc-bond").value;
-  const b = state.bonds.find(x => x.secid === secid);
-  if (!b) { box.innerHTML = ""; return; }
+  const sel = document.getElementById("calc-selected");
+  const b = state.bonds.find(x => x.secid === state.calcSecid);
+  if (!b) {
+    sel.textContent = "Выберите бумагу в списке выше";
+    box.innerHTML = "";
+    return;
+  }
+
+  sel.textContent = "Выбрано: " + b.name + " · погашение " + b.matDate +
+    " · простая доходность " + fmt(b.simpleYieldPct, 2) + "%";
 
   const amount = parseFloat(document.getElementById("calc-amount").value) || 0;
   const tax = parseFloat(document.getElementById("calc-tax").value);
@@ -195,34 +257,95 @@ function renderCalc() {
     "</div>";
 }
 
+function switchTab(name) {
+  document.getElementById("tab-table").classList.toggle("active", name === "table");
+  document.getElementById("tab-calc").classList.toggle("active", name === "calc");
+  document.getElementById("view-table").classList.toggle("hidden", name !== "table");
+  document.getElementById("view-calc").classList.toggle("hidden", name !== "calc");
+}
+
 function bindUI() {
+  document.getElementById("tab-table").addEventListener("click", () => switchTab("table"));
+  document.getElementById("tab-calc").addEventListener("click", () => switchTab("calc"));
   document.getElementById("refresh").addEventListener("click", loadData);
 
+  ["g-short", "g-mid", "g-long"].forEach(id =>
+    document.getElementById(id).addEventListener("change", e => {
+      state.groups[id.slice(2)] = e.target.checked;
+      renderTable();
+      updateStatus();
+    })
+  );
+  ["c-short", "c-mid", "c-long"].forEach(id =>
+    document.getElementById(id).addEventListener("change", e => {
+      state.calcGroups[id.slice(2)] = e.target.checked;
+      renderSuggestions();
+    })
+  );
+
   document.getElementById("f-search").addEventListener("input", e => {
-    state.search = e.target.value; renderTable();
-  });
-  document.getElementById("f-min-years").addEventListener("input", e => {
-    state.minYears = e.target.value === "" ? null : parseFloat(e.target.value); renderTable();
-  });
-  document.getElementById("f-max-years").addEventListener("input", e => {
-    state.maxYears = e.target.value === "" ? null : parseFloat(e.target.value); renderTable();
-  });
-  document.getElementById("f-min-yield").addEventListener("input", e => {
-    state.minYield = e.target.value === "" ? null : parseFloat(e.target.value); renderTable();
-  });
-  document.getElementById("f-reset").addEventListener("click", () => {
-    state.search = ""; state.minYears = null; state.maxYears = null; state.minYield = null;
-    document.getElementById("f-search").value = "";
-    document.getElementById("f-min-years").value = "";
-    document.getElementById("f-max-years").value = "";
-    document.getElementById("f-min-yield").value = "";
+    state.search = e.target.value;
     renderTable();
+    updateStatus();
   });
 
-  ["calc-bond", "calc-amount", "calc-tax"].forEach(id =>
-    document.getElementById(id).addEventListener("input", renderCalc)
-  );
-  document.getElementById("calc-bond").addEventListener("change", renderCalc);
+  const minYears = document.getElementById("f-min-years");
+  const maxYears = document.getElementById("f-max-years");
+  minYears.addEventListener("input", () => {
+    if (parseFloat(minYears.value) > parseFloat(maxYears.value)) maxYears.value = minYears.value;
+    document.getElementById("o-min-years").textContent = minYears.value;
+    state.minYears = parseFloat(minYears.value);
+    renderTable();
+    updateStatus();
+  });
+  maxYears.addEventListener("input", () => {
+    if (parseFloat(maxYears.value) < parseFloat(minYears.value)) minYears.value = maxYears.value;
+    document.getElementById("o-max-years").textContent = maxYears.value;
+    state.maxYears = parseFloat(maxYears.value);
+    renderTable();
+    updateStatus();
+  });
+  document.getElementById("f-min-yield").addEventListener("input", e => {
+    document.getElementById("o-min-yield").textContent = e.target.value;
+    state.minYield = parseFloat(e.target.value);
+    renderTable();
+    updateStatus();
+  });
+
+  document.getElementById("f-reset").addEventListener("click", () => {
+    state.search = ""; state.minYears = 0; state.maxYears = 30; state.minYield = 0;
+    state.groups = { short: false, mid: false, long: false };
+    ["g-short", "g-mid", "g-long"].forEach(id => { document.getElementById(id).checked = false; });
+    document.getElementById("f-search").value = "";
+    document.getElementById("f-min-years").value = 0;
+    document.getElementById("f-max-years").value = 30;
+    document.getElementById("f-min-yield").value = 0;
+    document.getElementById("o-min-years").textContent = "0";
+    document.getElementById("o-max-years").textContent = "30";
+    document.getElementById("o-min-yield").textContent = "0";
+    renderTable();
+    updateStatus();
+  });
+
+  const search = document.getElementById("calc-search");
+  search.addEventListener("input", renderSuggestions);
+  search.addEventListener("focus", renderSuggestions);
+  search.addEventListener("blur", () => {
+    setTimeout(() => document.getElementById("calc-suggestions").classList.add("hidden"), 150);
+  });
+
+  const amount = document.getElementById("calc-amount");
+  const amountRange = document.getElementById("calc-amount-range");
+  amount.addEventListener("input", () => {
+    const v = parseFloat(amount.value);
+    if (!Number.isNaN(v) && v >= 10000 && v <= 5000000) amountRange.value = v;
+    renderCalc();
+  });
+  amountRange.addEventListener("input", () => {
+    amount.value = amountRange.value;
+    renderCalc();
+  });
+  document.getElementById("calc-tax").addEventListener("change", renderCalc);
 }
 
 bindUI();

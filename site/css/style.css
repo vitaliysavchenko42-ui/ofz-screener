@@ -44,15 +44,43 @@ h2 { font-size: 17px; margin: 0 0 14px; }
 .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
 .btn:hover { filter: brightness(1.1); }
 
-main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; display: grid; gap: 16px; }
+.tabs {
+  display: flex;
+  gap: 6px;
+  max-width: 1200px;
+  margin: 16px auto 0;
+  padding: 0 16px;
+}
+
+.tab {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 22px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tab.active { background: var(--card); color: var(--text); border-color: var(--accent); }
+
+main { max-width: 1200px; margin: 12px auto 48px; padding: 0 16px; display: grid; gap: 16px; }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
 
-.filters { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; }
-.filters label, .calc-grid label {
+.hidden { display: none; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: end; }
+
+.filters > label, .calc-grid > label {
   display: flex; flex-direction: column; gap: 6px;
   font-size: 13px; color: var(--muted);
 }
+
+.check { display: inline-flex; gap: 7px; align-items: center; color: var(--text); font-size: 14px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+.checks { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
 
 input, select {
   background: #0d1322;
@@ -64,8 +92,17 @@ input, select {
   min-width: 110px;
 }
 
+input[type="range"] {
+  accent-color: var(--accent);
+  min-width: 150px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
 #f-search { min-width: 220px; }
-.range { display: flex; gap: 6px; }
+.range { display: flex; gap: 8px; }
+.range-vals { color: var(--text); font-size: 13px; }
 
 .status { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
 
@@ -102,7 +139,37 @@ tr:hover td { background: #1b2438; }
 .simple-yield { color: var(--good); font-weight: 600; }
 .bond-name { font-weight: 600; }
 
-.calc-grid { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
+.calc-grid { display: flex; flex-wrap: wrap; gap: 14px 20px; margin-bottom: 16px; }
+
+.picker { position: relative; min-width: 260px; }
+
+.suggestions {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #0d1322;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  max-height: 260px;
+  overflow: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.sug {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.sug:hover, .sug:hover .sug-meta { background: #1b2438; }
+.sug-meta { color: var(--muted); white-space: nowrap; }
 
 .results {
   display: grid;
@@ -129,4 +196,5 @@ footer { color: var(--muted); font-size: 12px; text-align: center; padding: 16px
   .topbar { padding: 12px 14px; }
   input, select { min-width: 90px; }
   #f-search { min-width: 140px; }
+  .picker { min-width: 100%; }
 }
