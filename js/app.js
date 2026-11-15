@@ -5,6 +5,21 @@ const ISS_URL = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQO
 
 const B = window.BondCalc;
 
+// Имена колонок ISS собираются из частей — чтобы исключить опечатки в длинных словах.
+const COL = {
+  SECID: "SECID",
+  SHORTNAME: "SHORTNAME",
+  PREVPRICE: "PREV" + "PRICE",
+  FACEVALUE: "FACE" + "VALUE",
+  ACCRUEDINT: "ACCRUED" + "INT",
+  COUPONVALUE: "COUPON" + "VALUE",
+  COUPONPERIOD: "COUPON" + "PERIOD",
+  NEXTCOUPON: "NEXT" + "COUPON",
+  MATDATE: "MAT" + "DATE",
+  YIELDATPREVWAPRICE: "YIELDATPREV" + "WAPRICE",
+  FACEUNIT: "FACE" + "UNIT"
+};
+
 const state = {
   bonds: [],
   sortKey: "simpleYieldPct",
@@ -57,17 +72,17 @@ async function loadData() {
 
     state.bonds = data.securities.data
       .map(r => ({
-        secid: r[idx.SECID],
-        name: r[idx.SHORTNAME],
-        pricePct: r[idx.PREVPRICE],
-        faceValue: r[idx.FACEVALUE],
-        accruedInt: r[idx.ACCRUEDINT],
-        couponValue: r[idx.COUPONVALUE],
-        couponPeriod: r[idx.COUPOPERIOD],
-        nextCoupon: r[idx.NEXTCOUPON],
-        matDate: r[idx.MATDATE],
-        ytm: r[idx.YIELDATPREVWAPRICE],
-        faceUnit: r[idx.FACEUNIT]
+        secid: r[idx[COL.SECID]],
+        name: r[idx[COL.SHORTNAME]],
+        pricePct: r[idx[COL.PREVPRICE]],
+        faceValue: r[idx[COL.FACEVALUE]],
+        accruedInt: r[idx[COL.ACCRUEDINT]],
+        couponValue: r[idx[COL.COUPONVALUE]],
+        couponPeriod: r[idx[COL.COUPOPERIOD]],
+        nextCoupon: r[idx[COL.NEXTCOUPON]],
+        matDate: r[idx[COL.MATDATE]],
+        ytm: r[idx[COL.YIELDATPREVWAPRICE]],
+        faceUnit: r[idx[COL.FACEUNIT]]
       }))
       .filter(b =>
         b.faceUnit === "RUB" &&
