@@ -28,15 +28,11 @@ body {
 .topbar {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 14px 20px 0;
+  padding: 14px 20px 4px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
 }
-
-.meta { display: flex; gap: 12px; align-items: center; color: var(--muted); font-size: 13px; }
-
-/* ===== HERO ===== */
-.hero { max-width: 1200px; margin: 0 auto; padding: 28px 20px 10px; }
 
 .brand {
   display: inline-flex; align-items: center; gap: 8px;
@@ -47,40 +43,12 @@ body {
   padding: 6px 12px; border-radius: 999px;
 }
 
-.hero h1 {
-  font-size: clamp(26px, 4.6vw, 42px);
-  line-height: 1.15; margin: 18px 0 10px; max-width: 900px;
-  background: linear-gradient(90deg, #eef2fb, #9db6ff);
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-}
-
-.hero .sub { color: var(--muted); font-size: clamp(14px, 2.2vw, 17px); max-width: 720px; margin: 0 0 18px; }
-
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-
-.chip {
-  font-size: 13px; padding: 7px 12px; border-radius: 999px;
-  background: rgba(255, 255, 255, .06);
-  border: 1px solid var(--line);
-}
-
-.hero-cta { display: flex; gap: 10px; flex-wrap: wrap; }
-
-.cta {
-  border: none; border-radius: 12px; padding: 13px 22px;
-  font-weight: 700; font-size: 15px; cursor: pointer; color: #fff;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  box-shadow: 0 8px 24px rgba(76, 194, 255, .25);
-}
-.cta.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); box-shadow: none; }
-.cta:hover { filter: brightness(1.08); }
-
-.live-stats { margin-top: 16px; color: var(--muted); font-size: 13px; }
+.meta { display: flex; gap: 12px; align-items: center; color: var(--muted); font-size: 13px; }
 
 /* ===== TABS ===== */
 .tabs {
   position: sticky; top: 0; z-index: 20;
-  display: flex; gap: 6px; max-width: 1200px; margin: 18px auto 0;
+  display: flex; gap: 6px; max-width: 1200px; margin: 10px auto 0;
   padding: 10px 16px;
   background: rgba(11, 16, 29, .85);
   backdrop-filter: blur(10px);
@@ -270,37 +238,40 @@ tbody tr:hover td { background: #1b2438; }
 footer { color: var(--muted); font-size: 12px; text-align: center; padding: 16px; }
 
 /* ===== MOBILE ===== */
-@media (max-width: 760px) {
-  .hero { padding: 24px 16px 6px; }
-  .topbar { padding: 12px 16px 0; }
+@media (max-width: 820px) {
+  .topbar { padding: 12px 14px 2px; }
   .filters > label { width: 100%; }
   .filters input[type="range"] { width: 100%; }
+  #f-search { min-width: 0; width: 100%; }
   .calc-grid > label { width: 100%; }
   .picker, .picker input { width: 100%; }
 
   .table-card { max-height: none; overflow: visible; }
+  #table-wrap { overflow-x: hidden; }
   thead { display: none; }
-  table, tbody, tr, td { display: block; width: 100%; }
+  table, tbody, tr, td { display: block; width: 100%; min-width: 0; }
   tr {
     border: 1px solid var(--line);
     border-radius: 12px;
     margin-bottom: 10px;
-    padding: 6px 4px;
+    padding: 4px 2px;
     background: var(--panel);
   }
   td {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
     border: none;
-    padding: 6px 10px;
+    padding: 7px 12px;
     white-space: normal;
+    text-align: right;
   }
   td[data-l]::before {
     content: attr(data-l);
     color: var(--muted);
     font-size: 12px;
-    margin-right: 12px;
+    text-align: left;
   }
   td.bond-name { flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; }
 }
