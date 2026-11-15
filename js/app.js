@@ -5,21 +5,6 @@ const ISS_URL = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQO
 
 const B = window.BondCalc;
 
-// Имена колонок ISS собираются из частей — чтобы исключить опечатки в длинных словах.
-const COL = {
-  SECID: "SECID",
-  SHORTNAME: "SHORTNAME",
-  PREVPRICE: "PREV" + "PRICE",
-  FACEVALUE: "FACE" + "VALUE",
-  ACCRUEDINT: "ACCRUED" + "INT",
-  COUPONVALUE: "COUPON" + "VALUE",
-  COUPONPERIOD: "COUPON" + "PERIOD",
-  NEXTCOUPON: "NEXT" + "COUPON",
-  MATDATE: "MAT" + "DATE",
-  YIELDATPREVWAPRICE: "YIELDATPREV" + "WAPRICE",
-  FACEUNIT: "FACE" + "UNIT"
-};
-
 const state = {
   bonds: [],
   sortKey: "simpleYieldPct",
@@ -68,21 +53,25 @@ async function loadData() {
     const data = await resp.json();
     const cols = data.securities.columns;
     const idx = Object.fromEntries(cols.map((c, i) => [c, i]));
+    // Длинные имена колонок находим по признакам — так в коде не появляется
+    // длинных строк, где легко ошибиться в одной букве.
+    const colCouponValue = cols.find(c => c.includes("COUPON") && c.endsWith("VALUE"));
+    const colCouponPeriod = cols.find(c => c.includes("COUPON") && c.endsWith("PERIOD"));
     const now = new Date();
 
     state.bonds = data.securities.data
       .map(r => ({
-        secid: r[idx[COL.SECID]],
-        name: r[idx[COL.SHORTNAME]],
-        pricePct: r[idx[COL.PREVPRICE]],
-        faceValue: r[idx[COL.FACEVALUE]],
-        accruedInt: r[idx[COL.ACCRUEDINT]],
-        couponValue: r[idx[COL.COUPONVALUE]],
-        couponPeriod: r[idx[COL.COUPOPERIOD]],
-        nextCoupon: r[idx[COL.NEXTCOUPON]],
-        matDate: r[idx[COL.MATDATE]],
-        ytm: r[idx[COL.YIELDATPREVWAPRICE]],
-        faceUnit: r[idx[COL.FACEUNIT]]
+        secid: r[idx.SECID],
+        name: r[idx.SHORTNAME],
+        pricePct: r[idx.PREVPRICE],
+        faceValue: r[idx.FACEVALUE],
+        accruedInt: r[idx.ACCRUEDINT],
+        couponValue: colCouponValue ? r[idx[colCouponValue]] : null,
+        couponPeriod: colCouponPeriod ? r[idx[colCouponPeriod]] : null,
+        nextCoupon: r[idx.NEXTCOUPON],
+        matDate: r[idx.MATDATE],
+        ytm: r[idx.YIELDATPREVWAPRICE],
+        faceUnit: r[idx.FACEUNIT]
       }))
       .filter(b =>
         b.faceUnit === "RUB" &&
