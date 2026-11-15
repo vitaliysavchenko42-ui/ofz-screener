@@ -53,6 +53,10 @@ async function loadData() {
     const data = await resp.json();
     const cols = data.securities.columns;
     const idx = Object.fromEntries(cols.map((c, i) => [c, i]));
+    // Длинные имена колонок находим по признакам — так в коде не появляется
+    // длинных строк, где легко ошибиться в одной букве.
+    const colCouponValue = cols.find(c => c.includes("COUPON") && c.endsWith("VALUE"));
+    const colCouponPeriod = cols.find(c => c.includes("COUPON") && c.endsWith("PERIOD"));
     const now = new Date();
 
     state.bonds = data.securities.data
@@ -62,8 +66,8 @@ async function loadData() {
         pricePct: r[idx.PREVPRICE],
         faceValue: r[idx.FACEVALUE],
         accruedInt: r[idx.ACCRUEDINT],
-        couponValue: r[idx.COUPONVALUE],
-        couponPeriod: r[idx.COUPOPERIOD],
+        couponValue: colCouponValue ? r[idx[colCouponValue]] : null,
+        couponPeriod: colCouponPeriod ? r[idx[colCouponPeriod]] : null,
         nextCoupon: r[idx.NEXTCOUPON],
         matDate: r[idx.MATDATE],
         ytm: r[idx.YIELDATPREVWAPRICE],
