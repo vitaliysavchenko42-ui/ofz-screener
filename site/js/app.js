@@ -74,7 +74,8 @@ async function loadData() {
         faceUnit: r[idx.FACEUNIT]
       }))
       .filter(b =>
-        b.faceUnit === "RUB" &&
+        // Мосбиржа обозначает рубль в FACEUNIT как "SUR"; валюта исключается явно.
+        (b.faceUnit === "SUR" || b.faceUnit === "RUB") &&
         b.pricePct > 0 &&
         b.matDate &&
         B.parseISO(b.matDate) > now
