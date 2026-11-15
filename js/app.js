@@ -2,6 +2,7 @@
 
 const ISS_URL = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQOB/securities.json" +
   "?iss.meta=off&iss.only=securities,securities.columns";
+const STORE_KEY = "ofz-screen-filters";
 
 const B = window.BondCalc;
 
@@ -24,15 +25,17 @@ const state = {
 };
 
 const COLUMNS = [
-  { key: "name", label: "Название" },
-  { key: "priceRub", label: "Цена, ₽" },
-  { key: "matDate", label: "Погашение" },
-  { key: "years", label: "Лет" },
-  { key: "couponRatePct", label: "Купон (номинал), %" },
-  { key: "couponYieldPct", label: "Текущая купонная, %" },
-  { key: "simpleYieldPct", label: "Простая, %" },
-  { key: "ytm", label: "YTM, %" }
+  { key: "name", label: "Название", tag: "Название" },
+  { key: "priceRub", label: "Цена, ₽", tag: "Цена, ₽" },
+  { key: "matDate", label: "Погашение", tag: "Погашение" },
+  { key: "years", label: "Лет", tag: "Лет" },
+  { key: "couponRatePct", label: "Купон (номинал), %", tag: "Купон (номинал), %" },
+  { key: "couponYieldPct", label: "Текущая купонная, %", tag: "Текущая купонная, %" },
+  { key: "simpleYieldPct", label: "Простая, %", tag: "Простая, %" },
+  { key: "ytm", label: "YTM, %", tag: "YTM, %" }
 ];
+
+const GROUP_LABEL = { short: "до 2 лет", mid: "2–5 лет", long: "5+ лет" };
 
 const fmt = (n, d) => {
   const digits = d === undefined ? 2 : d;
@@ -47,6 +50,72 @@ function groupOf(years) {
 
 function anyGroup(g) {
   return g.short || g.mid || g.long;
+}
+
+function heat(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "num";
+  if (n >= 15) return "num hot";
+  if (n >= 13) return "num warm";
+  return "num";
+}
+
+function persist() {
+  try {
+    const active = document.querySelector(".tab.active");
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      tab: active ? active.id : "tab-table",
+      search: state.search,
+      groups: state.groups,
+      calcGroups: state.calcGroups,
+      minYears: state.minYears,
+      maxYears: state.maxYears,
+      minYield: state.minYield,
+      minCoupon: state.minCoupon,
+      minCurrent: state.minCurrent,
+      minYtm: state.minYtm
+    }));
+  } catch (e) { /* приватный режим браузера — просто не сохраняем */ }
+}
+
+function restore() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    if (!s) return "tab-table";
+    state.search = s.search || "";
+    state.groups = s.groups || state.groups;
+    state.calcGroups = s.calcGroups || state.calcGroups;
+    state.minYears = s.minYears || 0;
+    state.maxYears = (s.maxYears === 0 ? 0 : (s.maxYears || 30));
+    state.minYield = s.minYield || 0;
+    state.minCoupon = s.minCoupon || 0;
+    state.minCurrent = s.minCurrent || 0;
+    state.minYtm = s.minYtm || 0;
+    return s.tab || "tab-table";
+  } catch (e) {
+    return "tab-table";
+  }
+}
+
+function applyControls() {
+  document.getElementById("f-search").value = state.search;
+  document.getElementById("g-short").checked = state.groups.short;
+  document.getElementById("g-mid").checked = state.groups.mid;
+  document.getElementById("g-long").checked = state.groups.long;
+  document.getElementById("c-short").checked = state.calcGroups.short;
+  document.getElementById("c-mid").checked = state.calcGroups.mid;
+  document.getElementById("c-long").checked = state.calcGroups.long;
+  document.getElementById("f-min-years").value = state.minYears;
+  document.getElementById("f-max-years").value = state.maxYears;
+  document.getElementById("f-min-yield").value = state.minYield;
+  document.getElementById("f-min-coupon").value = state.minCoupon;
+  document.getElementById("f-min-current").value = state.minCurrent;
+  document.getElementById("f-min-ytm").value = state.minYtm;
+  document.getElementById("o-min-years").textContent = state.minYears;
+  document.getElementById("o-max-years").textContent = state.maxYears;
+  document.getElementById("o-min-yield").textContent = state.minYield;
+  document.getElementById("o-min-coupon").textContent = state.minCoupon;
+  document.getElementById("o-min-current").textContent = state.minCurrent;
+  document.getElementById("o-min-ytm").textContent = state.minYtm;
 }
 
 async function loadData() {
@@ -98,6 +167,7 @@ async function loadData() {
 
     document.getElementById("updated-at").textContent =
       "Данные Мосбиржи: " + new Date().toLocaleTimeString("ru-RU");
+    updateHeroStats();
 
     if (!state.calcSecid || !state.bonds.some(b => b.secid === state.calcSecid)) {
       const first = state.bonds.slice()
@@ -105,6 +175,7 @@ async function loadData() {
       state.calcSecid = first ? first.secid : null;
     }
 
+    renderChart();
     renderTable();
     renderSuggestions();
     renderCalc();
@@ -149,6 +220,66 @@ function updateStatus() {
     "Всего бумаг: " + total + " · показано: " + shown;
 }
 
+function updateHeroStats() {
+  const el = document.getElementById("hero-stats");
+  if (!el) return;
+  el.textContent = state.bonds.length + " рублёвых ОФЗ · данные Мосбиржи · обновлено в " +
+    new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function renderChart() {
+  const box = document.getElementById("chart");
+  if (!box) return;
+  const pts = state.bonds
+    .filter(b => b.simpleYieldPct !== null && b.simpleYieldPct !== undefined && !Number.isNaN(b.simpleYieldPct))
+    .slice()
+    .sort((a, b) => b.simpleYieldPct - a.simpleYieldPct);
+  if (!pts.length) {
+    box.innerHTML = "";
+    return;
+  }
+  const W = 760, H = 280, padL = 46, padR = 16, padT = 18, padB = 36;
+  const maxX = Math.max.apply(null, pts.map(b => b.years));
+  const lo = Math.min.apply(null, pts.map(b => b.simpleYieldPct));
+  const hi = Math.max.apply(null, pts.map(b => b.simpleYieldPct));
+  const spanY = Math.max(hi - lo, 2);
+  const x = years => padL + (W - padL - padR) * years / Math.max(maxX, 1);
+  const y = v => padT + (H - padT - padB) * (1 - (v - lo) / spanY);
+
+  let svg = '<svg viewBox="0 0 ' + W + " " + H + '" class="scatter" preserveAspectRatio="xMidYMid meet">';
+  for (let gx = 0; gx <= 30; gx += 5) {
+    svg += '<line x1="' + x(gx).toFixed(1) + '" y1="' + padT + '" x2="' + x(gx).toFixed(1) +
+      '" y2="' + (H - padB) + '" class="grid"/>';
+    svg += '<text x="' + x(gx).toFixed(1) + '" y="' + (H - padB + 16) +
+      '" class="axis" text-anchor="middle">' + gx + "</text>";
+  }
+  svg += '<text x="' + (W / 2) + '" y="' + (H - 4) + '" class="axis" text-anchor="middle">лет до погашения</text>';
+  const ticks = 4;
+  for (let t = 0; t <= ticks; t++) {
+    const v = lo + spanY * t / ticks;
+    svg += '<line x1="' + padL + '" y1="' + y(v).toFixed(1) + '" x2="' + (W - padR) +
+      '" y2="' + y(v).toFixed(1) + '" class="grid"/>';
+    svg += '<text x="' + (padL - 6) + '" y="' + (y(v) + 4).toFixed(1) +
+      '" class="axis" text-anchor="end">' + v.toFixed(1) + "</text>";
+  }
+  for (const b of pts) {
+    svg += '<circle class="pt ' + groupOf(b.years) +
+      '" cx="' + x(b.years).toFixed(1) +
+      '" cy="' + y(b.simpleYieldPct).toFixed(1) +
+      '" r="5" data-secid="' + b.secid + '"><title>' +
+      b.name + " · " + b.years.toFixed(1) + " лет · простая " +
+      b.simpleYieldPct.toFixed(2) + "%</title></circle>";
+  }
+  svg += "</svg>";
+  box.innerHTML = svg;
+  box.querySelectorAll(".pt").forEach(el =>
+    el.addEventListener("click", () => {
+      switchTab("calc");
+      selectCalcBond(el.dataset.secid);
+    })
+  );
+}
+
 function renderTable() {
   const wrap = document.getElementById("table-wrap");
   const rows = sortRows(filtered());
@@ -159,18 +290,22 @@ function renderTable() {
     return '<th data-key="' + c.key + '" class="' + sorted.trim() + '">' + c.label + arrow + "</th>";
   }).join("") + "</tr>";
 
-  const tbody = rows.map(b =>
-    "<tr>" +
-      '<td class="bond-name">' + b.name + "</td>" +
-      "<td>" + fmt(b.priceRub, 2) + "</td>" +
-      "<td>" + b.matDate + "</td>" +
-      "<td>" + fmt(b.years, 1) + "</td>" +
-      "<td>" + fmt(b.couponRatePct, 2) + "</td>" +
-      "<td>" + fmt(b.couponYieldPct, 2) + "</td>" +
-      '<td class="simple-yield">' + fmt(b.simpleYieldPct, 2) + "</td>" +
-      "<td>" + fmt(b.ytm, 2) + "</td>" +
-    "</tr>"
-  ).join("");
+  const tbody = rows.map(b => {
+    const g = groupOf(b.years);
+    return "<tr>" +
+      '<td class="bond-name" data-l="Название"><span class="pill ' + g + '">' +
+      GROUP_LABEL[g] + "</span>" + b.name + "</td>" +
+      '<td data-l="Цена, ₽">' + fmt(b.priceRub, 2) + "</td>" +
+      '<td data-l="Погашение">' + b.matDate + "</td>" +
+      '<td data-l="Лет">' + fmt(b.years, 1) + "</td>" +
+      '<td data-l="Купон (номинал), %">' + fmt(b.couponRatePct, 2) + "</td>" +
+      '<td class="' + heat(b.couponYieldPct) + '" data-l="Текущая купонная, %">' +
+      fmt(b.couponYieldPct, 2) + "</td>" +
+      '<td class="' + heat(b.simpleYieldPct) + '" data-l="Простая, %">' +
+      fmt(b.simpleYieldPct, 2) + "</td>" +
+      '<td data-l="YTM, %">' + fmt(b.ytm, 2) + "</td>" +
+    "</tr>";
+  }).join("");
 
   wrap.innerHTML = '<table><thead>' + thead + "</thead><tbody>" + tbody + "</tbody></table>";
 
@@ -183,6 +318,7 @@ function renderTable() {
         state.sortKey = key;
         state.sortDir = key === "name" ? 1 : -1;
       }
+      persist();
       renderTable();
     })
   );
@@ -283,6 +419,7 @@ function switchTab(name) {
   document.getElementById("tab-calc").classList.toggle("active", name === "calc");
   document.getElementById("view-table").classList.toggle("hidden", name !== "table");
   document.getElementById("view-calc").classList.toggle("hidden", name !== "calc");
+  persist();
 }
 
 function bindUI() {
@@ -290,23 +427,37 @@ function bindUI() {
   document.getElementById("tab-calc").addEventListener("click", () => switchTab("calc"));
   document.getElementById("refresh").addEventListener("click", loadData);
 
+  document.getElementById("cta-calc").addEventListener("click", () => {
+    switchTab("calc");
+    document.getElementById("view-calc").scrollIntoView({ behavior: "smooth" });
+  });
+  document.getElementById("cta-table").addEventListener("click", () => {
+    switchTab("table");
+    document.getElementById("view-table").scrollIntoView({ behavior: "smooth" });
+  });
+
   ["g-short", "g-mid", "g-long"].forEach(id =>
     document.getElementById(id).addEventListener("change", e => {
       state.groups[id.slice(2)] = e.target.checked;
+      persist();
       renderTable();
+      renderChart();
       updateStatus();
     })
   );
   ["c-short", "c-mid", "c-long"].forEach(id =>
     document.getElementById(id).addEventListener("change", e => {
       state.calcGroups[id.slice(2)] = e.target.checked;
+      persist();
       renderSuggestions();
     })
   );
 
   document.getElementById("f-search").addEventListener("input", e => {
     state.search = e.target.value;
+    persist();
     renderTable();
+    renderChart();
     updateStatus();
   });
 
@@ -316,38 +467,50 @@ function bindUI() {
     if (parseFloat(minYears.value) > parseFloat(maxYears.value)) maxYears.value = minYears.value;
     document.getElementById("o-min-years").textContent = minYears.value;
     state.minYears = parseFloat(minYears.value);
+    persist();
     renderTable();
+    renderChart();
     updateStatus();
   });
   maxYears.addEventListener("input", () => {
     if (parseFloat(maxYears.value) < parseFloat(minYears.value)) minYears.value = maxYears.value;
     document.getElementById("o-max-years").textContent = maxYears.value;
     state.maxYears = parseFloat(maxYears.value);
+    persist();
     renderTable();
+    renderChart();
     updateStatus();
   });
   document.getElementById("f-min-yield").addEventListener("input", e => {
     document.getElementById("o-min-yield").textContent = e.target.value;
     state.minYield = parseFloat(e.target.value);
+    persist();
     renderTable();
+    renderChart();
     updateStatus();
   });
   document.getElementById("f-min-coupon").addEventListener("input", e => {
     document.getElementById("o-min-coupon").textContent = e.target.value;
     state.minCoupon = parseFloat(e.target.value);
+    persist();
     renderTable();
+    renderChart();
     updateStatus();
   });
   document.getElementById("f-min-current").addEventListener("input", e => {
     document.getElementById("o-min-current").textContent = e.target.value;
     state.minCurrent = parseFloat(e.target.value);
+    persist();
     renderTable();
+    renderChart();
     updateStatus();
   });
   document.getElementById("f-min-ytm").addEventListener("input", e => {
     document.getElementById("o-min-ytm").textContent = e.target.value;
     state.minYtm = parseFloat(e.target.value);
+    persist();
     renderTable();
+    renderChart();
     updateStatus();
   });
 
@@ -369,7 +532,9 @@ function bindUI() {
     document.getElementById("o-min-coupon").textContent = "0";
     document.getElementById("o-min-current").textContent = "0";
     document.getElementById("o-min-ytm").textContent = "0";
+    persist();
     renderTable();
+    renderChart();
     updateStatus();
   });
 
@@ -439,5 +604,9 @@ function bindUI() {
   document.getElementById("calc-tax").addEventListener("change", renderCalc);
 }
 
+const restoredTab = restore();
+applyControls();
 bindUI();
-loadData();
+loadData().then(() => {
+  if (restoredTab === "tab-calc") switchTab("calc");
+});
