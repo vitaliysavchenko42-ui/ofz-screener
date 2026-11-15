@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ОФЗ-скринер — доходность облигаций Мосбиржи</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<link rel="stylesheet" href="css/style.css?v=5">
+</head>
+<body>
+<header class="topbar">
+  <span class="brand">📈 ОФЗ-скринер</span>
+  <div class="meta">
+    <span id="updated-at">—</span>
+    <button id="refresh" class="btn">Обновить</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button id="tab-table" class="tab active" type="button">Таблица</button>
+  <button id="tab-calc" class="tab" type="button">Калькулятор</button>
+</nav>
+
+<main>
+  <!-- ТАБЛИЦА -->
+  <section id="view-table">
+    <section class="card table-card">
+      <div id="table-status" class="status">Загрузка…</div>
+      <div id="table-wrap"></div>
+    </section>
+  </section>
+
+  <!-- КАЛЬКУЛЯТОР -->
+  <section id="view-calc" class="hidden">
+    <section class="card calc">
+      <h2>Калькулятор покупки</h2>
+      <div class="checks">
+        <span class="check"><input type="checkbox" id="c-short"><label for="c-short">Короткие (до 2 лет)</label></span>
+        <span class="check"><input type="checkbox" id="c-mid"><label for="c-mid">Средние (2–5 лет)</label></span>
+        <span class="check"><input type="checkbox" id="c-long"><label for="c-long">Длинные (5+ лет)</label></span>
+      </div>
+      <div class="calc-grid">
+        <label class="picker">
+          ОФЗ
+          <input id="calc-search" placeholder="26254 или ОФЗ 262…" autocomplete="off">
+          <div id="calc-suggestions" class="suggestions hidden"></div>
+        </label>
+        <label>Сумма, ₽
+          <input id="calc-amount" type="text" inputmode="numeric" value="100 000">
+          <input id="calc-amount-range" type="range" min="10000" max="5000000" step="10000" value="100000">
+        </label>
+        <label>Ставка НДФЛ
+          <select id="calc-tax">
+            <option value="13" selected>13 %</option>
+            <option value="15">15 %</option>
+            <option value="18">18 %</option>
+            <option value="20">20 %</option>
+            <option value="22">22 %</option>
+          </select>
+        </label>
+      </div>
+      <div id="calc-selected" class="status"></div>
+      <div id="calc-results"></div>
+      <p class="note">
+        Налог на купоны удерживает брокер автоматически. Дисконт (разница цены покупки и номинала)
+        при погашении по номиналу НДФЛ не облагается. Даты купонов считаются с шагом COUPONPERIOD от
+        следующего купона — для бумаг с неровным графиком возможна погрешность ±1 купон. Суммы —
+        на одну бумагу номиналом 1000 ₽. Не является инвестиционной рекомендацией.
+      </p>
+    </section>
+  </section>
+</main>
+
+<footer>Данные: ISS API Мосбиржи · сервис бесплатный · не является инвестиционной рекомендацией</footer>
+
+<script src="js/calculator.js?v=6"></script>
+<script src="js/app.js?v=6"></script>
+</body>
+</html>
