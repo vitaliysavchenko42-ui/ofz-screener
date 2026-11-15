@@ -167,7 +167,6 @@ async function loadData() {
 
     document.getElementById("updated-at").textContent =
       "Данные Мосбиржи: " + new Date().toLocaleTimeString("ru-RU");
-    updateHeroStats();
 
     if (!state.calcSecid || !state.bonds.some(b => b.secid === state.calcSecid)) {
       const first = state.bonds.slice()
@@ -218,13 +217,6 @@ function updateStatus() {
   const shown = filtered().length;
   document.getElementById("table-status").textContent =
     "Всего бумаг: " + total + " · показано: " + shown;
-}
-
-function updateHeroStats() {
-  const el = document.getElementById("hero-stats");
-  if (!el) return;
-  el.textContent = state.bonds.length + " рублёвых ОФЗ · данные Мосбиржи · обновлено в " +
-    new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
 function renderChart() {
@@ -426,15 +418,6 @@ function bindUI() {
   document.getElementById("tab-table").addEventListener("click", () => switchTab("table"));
   document.getElementById("tab-calc").addEventListener("click", () => switchTab("calc"));
   document.getElementById("refresh").addEventListener("click", loadData);
-
-  document.getElementById("cta-calc").addEventListener("click", () => {
-    switchTab("calc");
-    document.getElementById("view-calc").scrollIntoView({ behavior: "smooth" });
-  });
-  document.getElementById("cta-table").addEventListener("click", () => {
-    switchTab("table");
-    document.getElementById("view-table").scrollIntoView({ behavior: "smooth" });
-  });
 
   ["g-short", "g-mid", "g-long"].forEach(id =>
     document.getElementById(id).addEventListener("change", e => {
