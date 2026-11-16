@@ -50,8 +50,7 @@ body {
   position: sticky; top: 0; z-index: 20;
   display: flex; gap: 6px; max-width: 1200px; margin: 10px auto 0;
   padding: 10px 16px;
-  background: rgba(11, 16, 29, .85);
-  backdrop-filter: blur(10px);
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 
@@ -246,7 +245,14 @@ footer { color: var(--muted); font-size: 12px; text-align: center; padding: 16px
   .calc-grid > label { width: 100%; }
   .picker, .picker input { width: 100%; }
 
-  .table-card { max-height: none; overflow: visible; }
+  /* Таблица прокручивается внутри своей карточки: шапка, вкладки и фильтры
+     остаются на месте, строки не «уходят» под плавающие элементы. */
+  .table-card {
+    max-height: calc(100vh - 330px);
+    max-height: calc(100dvh - 330px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   #table-wrap { overflow-x: hidden; }
   thead { display: none; }
   table, tbody, tr, td { display: block; width: 100%; min-width: 0; }
