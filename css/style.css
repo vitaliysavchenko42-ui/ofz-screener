@@ -86,6 +86,8 @@ h2 { font-size: 17px; margin: 0 0 12px; }
 .check input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
 .checks { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
 
+.bond-checks { display: flex; gap: 12px; flex-wrap: wrap; width: 100%; border-top: 1px solid var(--line); margin-top: 2px; padding-top: 10px; }
+
 input, select {
   background: var(--panel);
   color: var(--text);
