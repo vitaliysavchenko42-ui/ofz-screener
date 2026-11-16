@@ -13,7 +13,8 @@ const state = {
   search: "",
   groups: { short: false, mid: false, long: false },
   calcGroups: { short: false, mid: false, long: false },
-  calcSecid: null
+  calcSecid: null,
+  bondFilters: { "26238": false, "26254": false }
 };
 
 const COLUMNS = [
@@ -61,7 +62,8 @@ function persist() {
     const active = document.querySelector(".tab.active");
     localStorage.setItem(STORE_KEY, JSON.stringify({
       tab: active ? active.id : "tab-table",
-      calcGroups: state.calcGroups
+      calcGroups: state.calcGroups,
+      bondFilters: state.bondFilters
     }));
   } catch (e) { /* приватный режим браузера — просто не сохраняем */ }
 }
@@ -71,6 +73,7 @@ function restore() {
     const s = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
     if (!s) return "tab-table";
     state.calcGroups = s.calcGroups || state.calcGroups;
+    state.bondFilters = Object.assign({}, state.bondFilters, s.bondFilters || {});
     return s.tab || "tab-table";
   } catch (e) {
     return "tab-table";
@@ -81,6 +84,8 @@ function applyControls() {
   document.getElementById("g-short").checked = state.groups.short;
   document.getElementById("g-mid").checked = state.groups.mid;
   document.getElementById("g-long").checked = state.groups.long;
+  document.getElementById("b-26238").checked = state.bondFilters["26238"];
+  document.getElementById("b-26254").checked = state.bondFilters["26254"];
   document.getElementById("f-search").value = state.search;
   document.getElementById("c-short").checked = state.calcGroups.short;
   document.getElementById("c-mid").checked = state.calcGroups.mid;
@@ -172,6 +177,10 @@ async function loadData() {
 function passesFilters(b) {
   const q = state.search.trim().toLowerCase();
   if (q && !(b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q))) return false;
+  // Персональные галочки важнее групповых: если хоть одна включена —
+  // показываем только выбранные бумаги.
+  const picked = Object.keys(state.bondFilters).filter(k => state.bondFilters[k]);
+  if (picked.length) return picked.some(k => b.secid.includes(k) || b.name.includes(k));
   if (anyGroup(state.groups) && !state.groups[groupOf(b.years)]) return false;
   return true;
 }
@@ -193,8 +202,10 @@ function sortRows(rows) {
 function updateStatus() {
   const total = state.bonds.length;
   const shown = filtered().length;
-  document.getElementById("table-status").textContent =
-    "Всего бумаг: " + total + " · показано: " + shown;
+  const picked = Object.keys(state.bondFilters).filter(k => state.bondFilters[k]);
+  let line = "Всего бумаг: " + total + " · показано: " + shown;
+  if (picked.length) line += " · фильтр: " + picked.map(k => "ОФЗ " + k).join(", ");
+  document.getElementById("table-status").textContent = line;
 }
 
 function renderTable() {
@@ -322,6 +333,15 @@ function bindUI() {
   ["g-short", "g-mid", "g-long"].forEach(id =>
     document.getElementById(id).addEventListener("change", e => {
       state.groups[id.slice(2)] = e.target.checked;
+      persist();
+      renderTable();
+      updateStatus();
+    })
+  );
+
+  ["b-26238", "b-26254"].forEach(id =>
+    document.getElementById(id).addEventListener("change", e => {
+      state.bondFilters[id.slice(2)] = e.target.checked;
       persist();
       renderTable();
       updateStatus();
