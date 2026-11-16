@@ -47,7 +47,6 @@ body {
 
 /* ===== TABS ===== */
 .tabs {
-  position: sticky; top: 0; z-index: 20;
   display: flex; gap: 6px; max-width: 1200px; margin: 10px auto 0;
   padding: 10px 16px;
   background: var(--bg);
@@ -153,10 +152,7 @@ th {
   font-weight: 600;
   cursor: pointer;
   user-select: none;
-  position: sticky;
-  top: 0;
   background: var(--card);
-  z-index: 1;
 }
 
 th.sorted { color: var(--accent); }
