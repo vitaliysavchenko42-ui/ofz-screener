@@ -1,7 +1,7 @@
 "use strict";
 
 const ISS_URL = "https://iss.moex.com/iss/engines/stock/markets/bonds/boards/TQOB/securities.json" +
-  "?iss.meta=off&iss.only=securities,securities.columns";
+  "?iss.meta=off&iss.only=securities,securities.columns,marketdata,marketdata.columns";
 const STORE_KEY = "ofz-screen-filters";
 
 const B = window.BondCalc;
@@ -13,11 +13,7 @@ const state = {
   search: "",
   groups: { short: false, mid: false, long: false },
   calcGroups: { short: false, mid: false, long: false },
-  calcSecid: null,
-  suggestIndex: -1,
-  suggestList: [],
-  tableSuggestList: [],
-  tableSuggestIndex: -1
+  calcSecid: null
 };
 
 const COLUMNS = [
@@ -39,6 +35,11 @@ const fmt = (n, d) => {
   return n.toLocaleString("ru-RU", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 };
 const fmtRub = (n, d) => fmt(n, d === undefined ? 0 : d) + " ₽";
+const fmtDate = (iso) => {
+  if (!iso || iso.length !== 10) return iso || "—";
+  const p = iso.split("-");
+  return p[2] + "." + p[1] + "." + p[0];
+};
 
 function groupOf(years) {
   return years <= 3 ? "short" : years <= 6 ? "mid" : "long";
@@ -95,6 +96,10 @@ async function loadData() {
     const data = await resp.json();
     const cols = data.securities.columns;
     const idx = Object.fromEntries(cols.map((c, i) => [c, i]));
+    const mdCols = data.marketdata ? data.marketdata.columns : [];
+    const mdIdx = Object.fromEntries(mdCols.map((c, i) => [c, i]));
+    const mdBySec = new Map((data.marketdata ? data.marketdata.data : [])
+      .map(r => [r[mdIdx.SECID], r]));
     // Длинные имена колонок находим по признакам — так в коде не появляется
     // длинных строк, где легко ошибиться в одной букве.
     const colCouponValue = cols.find(c => c.includes("COUPON") && c.endsWith("VALUE"));
@@ -102,19 +107,26 @@ async function loadData() {
     const now = new Date();
 
     state.bonds = data.securities.data
-      .map(r => ({
-        secid: r[idx.SECID],
-        name: r[idx.SHORTNAME],
-        pricePct: r[idx.PREVPRICE],
-        faceValue: r[idx.FACEVALUE],
-        accruedInt: r[idx.ACCRUEDINT],
-        couponValue: colCouponValue ? r[idx[colCouponValue]] : null,
-        couponPeriod: colCouponPeriod ? r[idx[colCouponPeriod]] : null,
-        nextCoupon: r[idx.NEXTCOUPON],
-        matDate: r[idx.MATDATE],
-        ytm: r[idx.YIELDATPREVWAPRICE],
-        faceUnit: r[idx.FACEUNIT]
-      }))
+      .map(r => {
+        const md = mdBySec.get(r[idx.SECID]);
+        // В течение торгов — цена последней сделки; вне торгов — закрытие прошлой сессии
+        const livePrice = md && md[mdIdx.LAST] > 0 ? md[mdIdx.LAST] : null;
+        const liveYtm = md && md[mdIdx.YIELD] > 0 ? md[mdIdx.YIELD] : null;
+        return {
+          secid: r[idx.SECID],
+          name: r[idx.SHORTNAME],
+          pricePct: livePrice !== null ? livePrice : r[idx.PREVPRICE],
+          priceSource: livePrice !== null ? "live" : "prev",
+          faceValue: r[idx.FACEVALUE],
+          accruedInt: r[idx.ACCRUEDINT],
+          couponValue: colCouponValue ? r[idx[colCouponValue]] : null,
+          couponPeriod: colCouponPeriod ? r[idx[colCouponPeriod]] : null,
+          nextCoupon: r[idx.NEXTCOUPON],
+          matDate: r[idx.MATDATE],
+          ytm: liveYtm !== null ? liveYtm : r[idx.YIELDATPREVWAPRICE],
+          faceUnit: r[idx.FACEUNIT]
+        };
+      })
       .filter(b =>
         // Мосбиржа обозначает рубль в FACEUNIT как "SUR"; валюта исключается явно.
         (b.faceUnit === "SUR" || b.faceUnit === "RUB") &&
@@ -133,8 +145,14 @@ async function loadData() {
         return b;
       });
 
-    document.getElementById("updated-at").textContent =
-      "Данные Мосбиржи: " + new Date().toLocaleTimeString("ru-RU");
+    const prevDate = data.securities.data.length ? data.securities.data[0][idx.PREVDATE] : "";
+    const systime = (data.marketdata && data.marketdata.data.length)
+      ? (data.marketdata.data[0][mdIdx.SYSTIME] || "") : "";
+    const dataDate = systime ? systime.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const anyLive = state.bonds.some(b => b.priceSource === "live");
+    document.getElementById("updated-at").textContent = anyLive
+      ? "Данные Мосбиржи: " + fmtDate(dataDate) + " · цены текущих торгов"
+      : "Данные Мосбиржи: " + fmtDate(prevDate) + " · цены закрытия прошлой сессии";
 
     if (!state.calcSecid || !state.bonds.some(b => b.secid === state.calcSecid)) {
       const first = state.bonds.slice()
@@ -143,7 +161,6 @@ async function loadData() {
     }
 
     renderTable();
-    renderSuggestions();
     renderCalc();
     updateStatus();
   } catch (e) {
@@ -178,55 +195,6 @@ function updateStatus() {
   const shown = filtered().length;
   document.getElementById("table-status").textContent =
     "Всего бумаг: " + total + " · показано: " + shown;
-}
-
-function renderTableSuggestions() {
-  const box = document.getElementById("table-suggestions");
-  const q = state.search.trim().toLowerCase();
-  if (!q) {
-    state.tableSuggestList = [];
-    state.tableSuggestIndex = -1;
-    box.innerHTML = "";
-    box.classList.add("hidden");
-    return;
-  }
-  const list = state.bonds
-    .filter(b => b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q))
-    .slice()
-    .sort((a, b) => B.parseISO(a.matDate) - B.parseISO(b.matDate))
-    .slice(0, 12);
-  state.tableSuggestList = list;
-  if (!list.length) {
-    box.innerHTML = "";
-    box.classList.add("hidden");
-    return;
-  }
-  box.innerHTML = list.map((b, i) =>
-    '<div class="sug' + (i === state.tableSuggestIndex ? " active" : "") +
-    '" data-secid="' + b.secid + '"><span>' + b.name + "</span>" +
-    '<span class="sug-meta">' + b.matDate + " · простая " + fmt(b.simpleYieldPct, 2) +
-    "%</span></div>"
-  ).join("");
-  box.classList.remove("hidden");
-  box.querySelectorAll(".sug").forEach(el =>
-    el.addEventListener("mousedown", e => {
-      e.preventDefault();
-      applyTableSuggestion(el.dataset.secid);
-    })
-  );
-}
-
-function applyTableSuggestion(secid) {
-  const b = state.bonds.find(x => x.secid === secid);
-  if (!b) return;
-  const input = document.getElementById("f-search");
-  state.search = b.name;
-  input.value = b.name;
-  state.tableSuggestIndex = -1;
-  document.getElementById("table-suggestions").classList.add("hidden");
-  persist();
-  renderTable();
-  updateStatus();
 }
 
 function renderTable() {
@@ -279,42 +247,10 @@ function calcPool() {
   );
 }
 
-function renderSuggestions() {
-  const box = document.getElementById("calc-suggestions");
-  const q = document.getElementById("calc-search").value.trim().toLowerCase();
-  const pool = calcPool().slice()
-    .sort((a, b) => B.parseISO(a.matDate) - B.parseISO(b.matDate));
-  const list = q
-    ? pool.filter(b => b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q))
-    : pool;
-  state.suggestList = list.slice(0, 12);
-  if (!state.suggestList.length) {
-    box.innerHTML = "";
-    box.classList.add("hidden");
-    return;
-  }
-  box.innerHTML = state.suggestList.map((b, i) =>
-    '<div class="sug' + (i === state.suggestIndex ? " active" : "") +
-    '" data-secid="' + b.secid + '"><span>' + b.name + "</span>" +
-    '<span class="sug-meta">' + b.matDate + " · купон " + fmt(b.couponRatePct, 2) +
-    "% · простая " + fmt(b.simpleYieldPct, 2) + "%</span></div>"
-  ).join("");
-  box.classList.remove("hidden");
-  box.querySelectorAll(".sug").forEach(el =>
-    el.addEventListener("mousedown", e => {
-      e.preventDefault();
-      selectCalcBond(el.dataset.secid);
-    })
-  );
-}
-
-function selectCalcBond(secid, keepText) {
+function selectCalcBond(secid) {
   state.calcSecid = secid;
   const b = state.bonds.find(x => x.secid === secid);
-  if (!keepText) {
-    document.getElementById("calc-search").value = b ? b.name : "";
-    document.getElementById("calc-suggestions").classList.add("hidden");
-  }
+  document.getElementById("calc-search").value = b ? b.name : "";
   renderCalc();
 }
 
@@ -395,93 +331,43 @@ function bindUI() {
   const fSearch = document.getElementById("f-search");
   fSearch.addEventListener("input", () => {
     state.search = fSearch.value;
-    state.tableSuggestIndex = -1;
-    renderTableSuggestions();
     // Автоподстановка при единственном совпадении: подставляем полное название
-    if (state.tableSuggestList.length === 1) {
-      applyTableSuggestion(state.tableSuggestList[0].secid);
-      return;
+    const q = state.search.trim().toLowerCase();
+    if (q) {
+      const matches = state.bonds.filter(b =>
+        b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q));
+      if (matches.length === 1) {
+        state.search = matches[0].name;
+        fSearch.value = matches[0].name;
+      }
     }
     persist();
     renderTable();
     updateStatus();
-  });
-  fSearch.addEventListener("keydown", e => {
-    const box = document.getElementById("table-suggestions");
-    const hidden = box.classList.contains("hidden");
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      if (hidden || !state.tableSuggestList.length) return;
-      e.preventDefault();
-      const step = e.key === "ArrowDown" ? 1 : -1;
-      state.tableSuggestIndex = (state.tableSuggestIndex + step + state.tableSuggestList.length) % state.tableSuggestList.length;
-      renderTableSuggestions();
-      const act = box.querySelector(".sug.active");
-      if (act) act.scrollIntoView({ block: "nearest" });
-    } else if (e.key === "Enter") {
-      if (!hidden && state.tableSuggestIndex >= 0 && state.tableSuggestList[state.tableSuggestIndex]) {
-        e.preventDefault();
-        applyTableSuggestion(state.tableSuggestList[state.tableSuggestIndex].secid);
-      } else if (state.tableSuggestList.length === 1) {
-        e.preventDefault();
-        applyTableSuggestion(state.tableSuggestList[0].secid);
-      }
-    } else if (e.key === "Escape") {
-      box.classList.add("hidden");
-    }
-  });
-  fSearch.addEventListener("focus", () => { if (state.search.trim()) renderTableSuggestions(); });
-  fSearch.addEventListener("blur", () => {
-    setTimeout(() => document.getElementById("table-suggestions").classList.add("hidden"), 150);
   });
 
   ["c-short", "c-mid", "c-long"].forEach(id =>
     document.getElementById(id).addEventListener("change", e => {
       state.calcGroups[id.slice(2)] = e.target.checked;
       persist();
-      renderSuggestions();
     })
   );
 
   const search = document.getElementById("calc-search");
   search.addEventListener("input", () => {
     const q = search.value.trim().toLowerCase();
-    state.suggestIndex = -1;
-    renderSuggestions();
-    // Автоподстановка: единственный вариант или точное совпадение с тикером/названием
-    if (state.suggestList.length === 1) {
-      selectCalcBond(state.suggestList[0].secid, true);
-    } else {
-      const exact = state.suggestList.find(b =>
-        b.secid.toLowerCase() === q || b.name.toLowerCase() === q);
-      if (exact) selectCalcBond(exact.secid, true);
-    }
-  });
-  search.addEventListener("keydown", e => {
-    const box = document.getElementById("calc-suggestions");
-    const hidden = box.classList.contains("hidden");
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      if (hidden || !state.suggestList.length) return;
-      e.preventDefault();
-      const step = e.key === "ArrowDown" ? 1 : -1;
-      state.suggestIndex = (state.suggestIndex + step + state.suggestList.length) % state.suggestList.length;
-      renderSuggestions();
-      const act = box.querySelector(".sug.active");
-      if (act) act.scrollIntoView({ block: "nearest" });
-    } else if (e.key === "Enter") {
-      if (!hidden && state.suggestIndex >= 0 && state.suggestList[state.suggestIndex]) {
-        e.preventDefault();
-        selectCalcBond(state.suggestList[state.suggestIndex].secid);
-      } else if (state.suggestList.length === 1) {
-        e.preventDefault();
-        selectCalcBond(state.suggestList[0].secid);
+    // Как в таблице: единственное совпадение — подставляем и выбираем; точное — выбираем
+    if (q) {
+      const matches = calcPool().filter(b =>
+        b.name.toLowerCase().includes(q) || b.secid.toLowerCase().includes(q));
+      if (matches.length === 1) {
+        selectCalcBond(matches[0].secid);
+      } else {
+        const exact = matches.find(b =>
+          b.secid.toLowerCase() === q || b.name.toLowerCase() === q);
+        if (exact) selectCalcBond(exact.secid);
       }
-    } else if (e.key === "Escape") {
-      box.classList.add("hidden");
     }
-  });
-  search.addEventListener("focus", renderSuggestions);
-  search.addEventListener("blur", () => {
-    setTimeout(() => document.getElementById("calc-suggestions").classList.add("hidden"), 150);
   });
 
   const amount = document.getElementById("calc-amount");
