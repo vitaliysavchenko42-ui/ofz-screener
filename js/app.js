@@ -282,26 +282,56 @@ function renderCalc() {
   const amountRaw = document.getElementById("calc-amount").dataset.value ||
     document.getElementById("calc-amount").value.replace(/\D/g, "");
   const amount = parseFloat(amountRaw) || 0;
-  const tax = parseFloat(document.getElementById("calc-tax").value);
+  const taxRaw = document.getElementById("calc-tax").value;
+  const isIis = taxRaw === "iis3";
+  const tax = isIis ? 0 : parseFloat(taxRaw);
 
   const p = B.calcPurchase(amount, b.pricePct, b.faceValue, b.accruedInt);
   const days = Math.max(Math.round(B.yearsToMaturity(b.matDate) * B.YEAR_DAYS), 0);
   const nCoupons = B.couponCount(b.nextCoupon, b.matDate, b.couponPeriod);
-  const c = B.calcCoupons(p.qty, nCoupons, b.couponValue, tax);
-  const proceeds = p.qty * b.faceValue + c.net;
-  const gain = proceeds - p.cost;
   const nowMs = Date.now();
   const firstCouponDays = b.nextCoupon
     ? Math.max(Math.round((B.parseISO(b.nextCoupon).getTime() - nowMs) / 86400000), 0)
     : 0;
-  const net = p.qty
-    ? B.netYieldXirr(p.perBond, b.couponValue * (1 - tax / 100), nCoupons,
-        firstCouponDays, b.couponPeriod, b.faceValue, days)
-    : null;
+  // Переоценка к погашению: номинал минус цена покупки (без НКД).
+  const revalTotal = p.qty * (b.faceValue - b.priceRub);
+  // НКД, уплаченный при покупке: входит в цену лота и компенсируется первым купоном.
+  const nkdTotal = p.qty * b.accruedInt;
+
+  let c, finTax = 0, taxLabel, net;
+  if (isIis) {
+    // ИИС-3: с купонов налог не удерживается; НДФЛ (15% с суммы сверх 30 млн ₽)
+    // платится один раз при закрытии счёта после минимального срока владения.
+    c = B.calcCoupons(p.qty, nCoupons, b.couponValue, 0);
+    const fin = B.calcIisTax(c.gross, revalTotal, 30000000, 15);
+    finTax = fin.tax;
+    const taxPerBond = p.qty ? finTax / p.qty : 0;
+    net = p.qty
+      ? B.netYieldXirr(p.perBond, b.couponValue, nCoupons,
+          firstCouponDays, b.couponPeriod, b.faceValue, days, -taxPerBond)
+      : null;
+    taxLabel = finTax > 0
+      ? "− " + fmtRub(finTax) + " (15% с суммы сверх 30 млн ₽)"
+      : "0 ₽ · прибыль в пределах 30 млн ₽ не облагается";
+  } else {
+    c = B.calcCoupons(p.qty, nCoupons, b.couponValue, tax);
+    net = p.qty
+      ? B.netYieldXirr(p.perBond, b.couponValue * (1 - tax / 100), nCoupons,
+          firstCouponDays, b.couponPeriod, b.faceValue, days)
+      : null;
+    taxLabel = "− " + fmtRub(c.tax) + " (" + tax + "%)";
+  }
+
+  const proceeds = p.qty * b.faceValue + (isIis ? c.gross - finTax : c.net);
+  const gain = proceeds - p.cost;
 
   const item = (label, value, accent) =>
     '<div class="result"><div class="label">' + label + '</div><div class="value' +
     (accent ? " accent" : "") + '">' + value + "</div></div>";
+
+  const couponRow = isIis
+    ? item("Купоны без удержания (налог при закрытии счёта)", fmtRub(c.gross))
+    : item("Купоны после налога", fmtRub(c.net));
 
   box.innerHTML = '<div class="results">' +
     item("Цена бумаги", fmtRub(b.priceRub)) +
@@ -309,10 +339,12 @@ function renderCalc() {
     item("Цена лота (бумага + НКД)", fmtRub(p.perBond)) +
     item("Количество бумаг", p.qty + " шт. · сдача " + fmtRub(p.change)) +
     item("Затраты", fmtRub(p.cost)) +
-    item("Купонов до погашения", nCoupons + " шт. · " + fmtRub(c.gross)) +
-    item("Налог на купоны (" + tax + "%)", "− " + fmtRub(c.tax)) +
+    item("Купонов до погашения", nCoupons + " шт. · валом " + fmtRub(c.gross)) +
+    item(isIis ? "Налог НДФЛ (ИИС-3, при закрытии счёта)" : "Налог НДФЛ с купонов (" + tax + "%)", taxLabel) +
+    couponRow +
+    item("Переоценка к погашению (номинал − цена)", (revalTotal >= 0 ? "+ " : "− ") + fmtRub(Math.abs(revalTotal))) +
+    item("Чистая прибыль (купоные нетто + переоценка − НКД)", (gain >= 0 ? "+ " : "− ") + fmtRub(Math.abs(gain)), true) +
     item("Итог к погашению", fmtRub(proceeds), true) +
-    item("Прибыль после налогов", (gain >= 0 ? "+ " : "− ") + fmtRub(Math.abs(gain)), true) +
     item("Чистая доходность", fmt(net, 2) + " % годовых", true) +
     "</div>";
 }

@@ -54,20 +54,33 @@ window.BondCalc = {
     return { gross: gross, tax: tax, net: gross - tax };
   },
 
+  /** Налог по режиму ИИС-3: положительный финансовый результат (валовые купоны +
+   *  положительная переоценка) освобождается от НДФЛ в пределах 30 млн ₽ по всем
+   *  договорам ИИС, прекращённым в одном налоговом периоде; минимальный срок
+   *  владения счётом, открытым в 2024–2026 гг., — 5 лет. Сверх лимита — НДФЛ
+   *  по общей ставке (в калькуляторе принято 15%). */
+  calcIisTax: function (grossCoupons, positiveReval, limitRub, ratePct) {
+    const finRes = grossCoupons + Math.max(0, positiveReval);
+    const taxable = Math.max(0, finRes - limitRub);
+    return { finRes: finRes, taxable: taxable, tax: taxable * ratePct / 100 };
+  },
+
   netAnnualPct: function (proceeds, cost, days) {
     if (cost <= 0 || days <= 0 || proceeds <= 0) return null;
     return (Math.pow(proceeds / cost, this.YEAR_DAYS / days) - 1) * 100;
   },
 
-  /** Чистая доходность (XIRR): покупка сегодня, купоны после налога по графику,
-   *  номинал при погашении. Возвращает % годовых или null. */
-  netYieldXirr: function (cost, netCoupon, nCoupons, firstCouponDays, periodDays, faceValue, daysTotal) {
+  /** Чистая доходность (XIRR): покупка сегодня, купоны по графику (уже после
+   *  налога), номинал при погашении. Возвращает % годовых или null.
+   *  finalAdj — необязательная корректировка выплаты в дату погашения
+   *  (например, налог ИИС-3, удерживаемый при закрытии счёта). */
+  netYieldXirr: function (cost, netCoupon, nCoupons, firstCouponDays, periodDays, faceValue, daysTotal, finalAdj) {
     if (!(cost > 0) || !nCoupons || nCoupons < 1 || !periodDays || !(daysTotal > 0)) return null;
     const flows = [];
     for (let k = 0; k < nCoupons; k++) {
       flows.push([Math.min(firstCouponDays + k * periodDays, daysTotal), netCoupon]);
     }
-    flows.push([daysTotal, faceValue]);
+    flows.push([daysTotal, faceValue + (finalAdj || 0)]);
     const pv = (r) => {
       let s = -cost;
       for (const f of flows) s += f[1] / Math.pow(1 + r, f[0] / 365.25);
