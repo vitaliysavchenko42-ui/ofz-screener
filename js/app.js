@@ -298,21 +298,22 @@ function renderCalc() {
   // НКД, уплаченный при покупке: входит в цену лота и компенсируется первым купоном.
   const nkdTotal = p.qty * b.accruedInt;
 
-  let c, finTax = 0, taxLabel, net;
+  let c, finTax = 0, finRes = null, taxLabel, net;
   if (isIis) {
-    // ИИС-3: с купонов налог не удерживается; НДФЛ (15% с суммы сверх 30 млн ₽)
-    // платится один раз при закрытии счёта после минимального срока владения.
+    // ИИС-3: пока счёт открыт, налог не удерживается — купоны приходят целиком
+    // и реинвестируются. НДФЛ возникает один раз при закрытии счёта:
+    // положительный финансовый результат за всё время счёта освобождается
+    // в пределах 30 млн ₽, превышение — по общей ставке (принято 15%).
     c = B.calcCoupons(p.qty, nCoupons, b.couponValue, 0);
     const fin = B.calcIisTax(c.gross, revalTotal, 30000000, 15);
+    finRes = fin.finRes;
     finTax = fin.tax;
-    const taxPerBond = p.qty ? finTax / p.qty : 0;
+    // На горизонте этой бумаги налога нет (счёт остаётся открытым)
     net = p.qty
       ? B.netYieldXirr(p.perBond, b.couponValue, nCoupons,
-          firstCouponDays, b.couponPeriod, b.faceValue, days, -taxPerBond)
+          firstCouponDays, b.couponPeriod, b.faceValue, days)
       : null;
-    taxLabel = finTax > 0
-      ? "− " + fmtRub(finTax) + " (15% с суммы сверх 30 млн ₽)"
-      : "0 ₽ · прибыль в пределах 30 млн ₽ не облагается";
+    taxLabel = "0 ₽ · купоны не облагаются, пока счёт открыт";
   } else {
     c = B.calcCoupons(p.qty, nCoupons, b.couponValue, tax);
     net = p.qty
@@ -322,7 +323,7 @@ function renderCalc() {
     taxLabel = "− " + fmtRub(c.tax) + " (" + tax + "%)";
   }
 
-  const proceeds = p.qty * b.faceValue + (isIis ? c.gross - finTax : c.net);
+  const proceeds = p.qty * b.faceValue + c.net;
   const gain = proceeds - p.cost;
 
   const item = (label, value, accent) =>
@@ -330,8 +331,16 @@ function renderCalc() {
     (accent ? " accent" : "") + '">' + value + "</div></div>";
 
   const couponRow = isIis
-    ? item("Купоны без удержания (налог при закрытии счёта)", fmtRub(c.gross))
+    ? item("Купоны без удержания (налог — только при закрытии счёта)", fmtRub(c.gross))
     : item("Купоны после налога", fmtRub(c.net));
+
+  const iisRows = isIis
+    ? item("Финрезультат счёта к погашению (справочно)", fmtRub(finRes)) +
+      item("Прогноз налога при закрытии счёта в дату погашения",
+        finTax > 0
+          ? "− " + fmtRub(finTax) + " (15% с суммы сверх 30 млн ₽)"
+          : "0 ₽ — в пределах льготы 30 млн ₽")
+    : "";
 
   box.innerHTML = '<div class="results">' +
     item("Цена бумаги", fmtRub(b.priceRub)) +
@@ -340,8 +349,9 @@ function renderCalc() {
     item("Количество бумаг", p.qty + " шт. · сдача " + fmtRub(p.change)) +
     item("Затраты", fmtRub(p.cost)) +
     item("Купонов до погашения", nCoupons + " шт. · валом " + fmtRub(c.gross)) +
-    item(isIis ? "Налог НДФЛ (ИИС-3, при закрытии счёта)" : "Налог НДФЛ с купонов (" + tax + "%)", taxLabel) +
+    item(isIis ? "Налог НДФЛ (ИИС-3)" : "Налог НДФЛ с купонов (" + tax + "%)", taxLabel) +
     couponRow +
+    iisRows +
     item("Переоценка к погашению (номинал − цена)", (revalTotal >= 0 ? "+ " : "− ") + fmtRub(Math.abs(revalTotal))) +
     item("Чистая прибыль (купоные нетто + переоценка − НКД)", (gain >= 0 ? "+ " : "− ") + fmtRub(Math.abs(gain)), true) +
     item("Итог к погашению", fmtRub(proceeds), true) +
