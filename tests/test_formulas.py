@@ -48,17 +48,23 @@ def calc_coupons(qty: int, n_coupons: int, coupon_value: float, tax_pct: float):
     return {"gross": gross, "tax": tax, "net": gross - tax}
 
 
+def calc_iis_tax(gross_coupons: float, positive_reval: float, limit_rub: float, rate_pct: float):
+    fin_res = gross_coupons + max(0.0, positive_reval)
+    taxable = max(0.0, fin_res - limit_rub)
+    return {"fin_res": fin_res, "taxable": taxable, "tax": taxable * rate_pct / 100}
+
+
 def net_annual_pct(proceeds: float, cost: float, days: int) -> float:
     if cost <= 0 or days <= 0 or proceeds <= 0:
         raise ValueError
     return (pow(proceeds / cost, 365.25 / days) - 1) * 100
 
 
-def net_yield_xirr(cost, net_coupon, n_coupons, first_coupon_days, period_days, face_value, days_total):
+def net_yield_xirr(cost, net_coupon, n_coupons, first_coupon_days, period_days, face_value, days_total, final_adj=0.0):
     if cost <= 0 or n_coupons < 1 or period_days <= 0 or days_total <= 0:
         return None
     flows = [(min(first_coupon_days + k * period_days, days_total), net_coupon) for k in range(n_coupons)]
-    flows.append((days_total, face_value))
+    flows.append((days_total, face_value + final_adj))
 
     def pv(r):
         return -cost + sum(a / (1 + r) ** (d / 365.25) for d, a in flows)
@@ -120,6 +126,26 @@ class TestFormulas(unittest.TestCase):
         self.assertAlmostEqual(c["tax"], 325.0, places=6)
         self.assertAlmostEqual(c["net"], 2175.0, places=6)
 
+    def test_calc_iis_tax_within_limit(self):
+        # прибыль ниже лимита 30 млн => налога нет
+        r = calc_iis_tax(20_000_000, 1_000_000, 30_000_000, 15)
+        self.assertAlmostEqual(r["fin_res"], 21_000_000.0, places=6)
+        self.assertEqual(r["taxable"], 0.0)
+        self.assertEqual(r["tax"], 0.0)
+
+    def test_calc_iis_tax_over_limit(self):
+        # валовые купоны 28 млн + положительная переоценка 4 млн:
+        # сверх лимита 2 млн облагаются по 15% => 300 000 ₽
+        r = calc_iis_tax(28_000_000, 4_000_000, 30_000_000, 15)
+        self.assertAlmostEqual(r["taxable"], 2_000_000.0, places=6)
+        self.assertAlmostEqual(r["tax"], 300_000.0, places=6)
+
+    def test_calc_iis_tax_negative_reval_not_deducted(self):
+        # отрицательная переоценка (премия к номиналу) не увеличивает льготу
+        r = calc_iis_tax(28_000_000, -4_000_000, 30_000_000, 15)
+        self.assertAlmostEqual(r["taxable"], 0.0, places=6)
+        self.assertEqual(r["tax"], 0.0)
+
     def test_net_annual(self):
         # +10% за ~год => около 10% годовых
         self.assertAlmostEqual(net_annual_pct(1100, 1000, 365), 10.0, delta=0.05)
@@ -136,6 +162,19 @@ class TestFormulas(unittest.TestCase):
         # после НДФЛ 18% на купоны доходность к погашению заметно ниже доналоговой
         x = net_yield_xirr(839.43, 64.82 * 0.82, 28, 155, 182, 1000, 5070)
         self.assertAlmostEqual(x, 13.8, delta=0.2)
+
+    def test_xirr_final_adj_default_zero(self):
+        # без корректировки и с нулевой корректировкой результат идентичен
+        x0 = net_yield_xirr(839.43, 64.82, 28, 155, 182, 1000, 5070)
+        x1 = net_yield_xirr(839.43, 64.82, 28, 155, 182, 1000, 5070, 0)
+        self.assertAlmostEqual(x0, x1, places=10)
+
+    def test_xirr_iis_tax_at_end(self):
+        # налог ИИС платится при закрытии счёта: отрицательная корректировка
+        # номинала в дату погашения снижает доходность по сравнению с безналоговой
+        x = net_yield_xirr(839.43, 64.82, 28, 155, 182, 1000, 5070, -50.0)
+        y = net_yield_xirr(839.43, 64.82, 28, 155, 182, 1000, 5070)
+        self.assertTrue(x < y)
 
     def test_xirr_edges(self):
         self.assertIsNone(net_yield_xirr(0, 64.82, 28, 155, 182, 1000, 5070))
